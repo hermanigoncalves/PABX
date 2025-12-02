@@ -36,6 +36,7 @@ const activeCalls = new Map();
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
+    version: '1.2',
     timestamp: new Date().toISOString(),
     activeCalls: activeCalls.size,
     config: {
