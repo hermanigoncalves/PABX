@@ -152,10 +152,17 @@ app.post('/make-call', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erro:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    if (error.response) {
+      console.error('Detalhes da resposta:', JSON.stringify(error.response.data));
+    }
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.response ? error.response.data : null
+    });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor v1.2 rodando na porta ${PORT}`);
 });
