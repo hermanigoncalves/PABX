@@ -11,7 +11,7 @@ app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 // Configurações
-const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'GnDrTQvdzZ7wqAKfLzVQ';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const FACILPABX_HOST = process.env.FACILPABX_HOST || 'revier.fpabx.com.br';
 
@@ -20,8 +20,8 @@ const activeCalls = new Map();
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     activeCalls: activeCalls.size,
     config: {
@@ -34,23 +34,23 @@ app.get('/health', (req, res) => {
 // Endpoint para iniciar chamada com ElevenLabs
 app.post('/make-call', async (req, res) => {
   const { phoneNumber, leadName } = req.body;
-  
+
   if (!phoneNumber) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'phoneNumber é obrigatório' 
+    return res.status(400).json({
+      success: false,
+      error: 'phoneNumber é obrigatório'
     });
   }
 
   if (!ELEVENLABS_AGENT_ID || !ELEVENLABS_API_KEY) {
-    return res.status(500).json({ 
-      success: false, 
-      error: 'ElevenLabs não configurado. Verifique variáveis de ambiente.' 
+    return res.status(500).json({
+      success: false,
+      error: 'ElevenLabs não configurado. Verifique variáveis de ambiente.'
     });
   }
-  
+
   console.log(`📞 Iniciando chamada para: ${phoneNumber} (${leadName || 'Lead'})`);
-  
+
   try {
     // Fazer chamada via ElevenLabs API
     const response = await axios.post(
@@ -68,14 +68,14 @@ app.post('/make-call', async (req, res) => {
 
     const signedUrl = response.data.signed_url;
     console.log('✅ URL assinada obtida do ElevenLabs');
-    
+
     // Conectar ao WebSocket do ElevenLabs
     const ws = new WebSocket(signedUrl);
     const callId = Date.now().toString();
-    
+
     ws.on('open', () => {
       console.log(`🔗 WebSocket conectado para chamada ${callId}`);
-      
+
       // Enviar dados iniciais da conversa
       ws.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
@@ -87,7 +87,7 @@ app.post('/make-call', async (req, res) => {
           }
         }
       }));
-      
+
       activeCalls.set(callId, {
         phoneNumber,
         leadName,
@@ -95,15 +95,15 @@ app.post('/make-call', async (req, res) => {
         startTime: new Date()
       });
     });
-    
+
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
+
         if (message.type === 'agent_response') {
           console.log(`🤖 Agente: ${message.agent_response?.text || 'resposta de áudio'}`);
         }
-        
+
         if (message.type === 'conversation_ended') {
           console.log(`✅ Conversa encerrada: ${callId}`);
           activeCalls.delete(callId);
@@ -113,40 +113,40 @@ app.post('/make-call', async (req, res) => {
         console.error('Erro ao processar mensagem:', error);
       }
     });
-    
+
     ws.on('error', (error) => {
       console.error(`❌ Erro WebSocket: ${error.message}`);
       activeCalls.delete(callId);
     });
-    
+
     ws.on('close', () => {
       console.log(`🔌 WebSocket fechado: ${callId}`);
       activeCalls.delete(callId);
     });
-    
+
     // Aqui você integraria com o PABX para fazer a ligação real
     // Por enquanto, retornamos sucesso indicando que o agente está pronto
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Agente ElevenLabs iniciado com sucesso',
       callId: callId,
       signedUrl: signedUrl
     });
-    
+
   } catch (error) {
     console.error('❌ Erro ao iniciar chamada:', error.message);
-    
+
     if (error.response) {
-      return res.status(error.response.status).json({ 
-        success: false, 
-        error: error.response.data || error.message 
+      return res.status(error.response.status).json({
+        success: false,
+        error: error.response.data || error.message
       });
     }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -160,11 +160,11 @@ app.get('/calls', (req, res) => {
     startTime: call.startTime,
     duration: Math.floor((Date.now() - call.startTime.getTime()) / 1000) + 's'
   }));
-  
-  res.json({ 
-    success: true, 
+
+  res.json({
+    success: true,
     count: calls.length,
-    calls 
+    calls
   });
 });
 
@@ -172,20 +172,20 @@ app.get('/calls', (req, res) => {
 app.post('/end-call/:callId', (req, res) => {
   const { callId } = req.params;
   const call = activeCalls.get(callId);
-  
+
   if (!call) {
-    return res.status(404).json({ 
-      success: false, 
-      error: 'Chamada não encontrada' 
+    return res.status(404).json({
+      success: false,
+      error: 'Chamada não encontrada'
     });
   }
-  
+
   call.ws.close();
   activeCalls.delete(callId);
-  
-  res.json({ 
-    success: true, 
-    message: 'Chamada encerrada' 
+
+  res.json({
+    success: true,
+    message: 'Chamada encerrada'
   });
 });
 
