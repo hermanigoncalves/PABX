@@ -63,7 +63,7 @@ app.post('/make-call', async (req, res) => {
   try {
     // 1. Obter URL assinada do ElevenLabs
     const response = await axios.get(
-      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${ELEVENLABS_AGENT_ID}`,
       { headers: { 'xi-api-key': ELEVENLABS_API_KEY } }
     );
 
