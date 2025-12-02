@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 80;
 const SIP_PORT = process.env.SIP_PORT || 5060;
 
 // Configurações
-const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'eywNGzPZ9ne8v1TBJJfh';
+const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'agent_4501k86nzv2hehnt68zdk51t';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const FACILPABX_HOST = process.env.FACILPABX_HOST || 'revier.fpabx.com.br';
 const FACILPABX_USER = process.env.FACILPABX_USER || '701';
