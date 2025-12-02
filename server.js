@@ -3,7 +3,7 @@ const express = require('express');
 const WebSocket = require('ws');
 const cors = require('cors');
 const axios = require('axios');
-const { UserAgent, Inviter } = require('sip.js');
+// const { UserAgent, Inviter } = require('sip.js'); // Removido para usar import dinâmico
 let wrtc;
 try {
   wrtc = require('wrtc');
@@ -19,7 +19,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 const SIP_PORT = process.env.SIP_PORT || 5060;
 
 // Configurações
@@ -92,6 +92,7 @@ app.post('/make-call', async (req, res) => {
 
       // 3. Iniciar chamada SIP
       try {
+        const { UserAgent } = await import('sip.js');
         const userAgent = new UserAgent({
           uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
           transportOptions: {
