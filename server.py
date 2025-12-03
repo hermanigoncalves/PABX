@@ -16,19 +16,15 @@ def health():
     status_str = "unknown"
     if sip_client:
         try:
-            # pyVoIP define status como um enum
-            status_enum = sip_client.get_status() # Tentar get_status se existir, ou acessar atributo
-        except:
-            try:
-                status_enum = sip_client._status
-            except:
-                status_enum = "error_reading_status"
-        
-        status_str = str(status_enum)
+            # Acessar _status diretamente pois get_status pode não existir ou falhar
+            status_enum = getattr(sip_client, '_status', 'status_not_found')
+            status_str = str(status_enum)
+        except Exception as e:
+            status_str = f"error: {str(e)}"
 
     return jsonify({
         "status": "ok",
-        "version": "2.1-PYTHON-FIX",
+        "version": "2.2-PYTHON-SAFE",
         "sip_status": status_str
     })
 
