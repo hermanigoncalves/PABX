@@ -93,6 +93,27 @@ class AudioBridge(threading.Thread):
     def run(self):
         logger.info(f"🚀 Iniciando Bridge de Áudio para chamada {self.call_id}")
         
+        # Aguardar a chamada ser atendida (timeout de 30 segundos)
+        logger.info("⏳ Aguardando chamada ser atendida...")
+        timeout = 30
+        waited = 0
+        while waited < timeout and self.call.state != CallState.ANSWERED:
+            time.sleep(0.5)
+            waited += 0.5
+            if waited % 2 == 0:
+                logger.info(f"⏳ Aguardando... Estado atual: {self.call.state} ({waited}s/{timeout}s)")
+            
+            # Se a chamada já foi encerrada, abortar
+            if self.call.state == CallState.ENDED:
+                logger.error("❌ Chamada encerrada antes de ser atendida")
+                return
+        
+        if self.call.state != CallState.ANSWERED:
+            logger.error(f"❌ Timeout aguardando chamada ser atendida (estado final: {self.call.state})")
+            return
+        
+        logger.info("✅ Chamada ATENDIDA! Iniciando bridge de áudio...")
+        
         # Conectar ao ElevenLabs
         try:
             self.ws = websocket.WebSocketApp(
@@ -151,6 +172,11 @@ class AudioBridge(threading.Thread):
             msg_type = data.get('type', 'unknown')
             
             if msg_type == 'audio':
+                # Verificar se a chamada está ativa
+                if self.call.state != CallState.ANSWERED:
+                    logger.warning(f"⚠️ Chamada não está atendida (estado: {self.call.state}). Ignorando áudio.")
+                    return
+                
                 # Recebeu áudio do ElevenLabs (Base64) - PCM 16kHz 16-bit
                 logger.info(f"🔊 Recebido chunk de áudio do ElevenLabs")
                 chunk_16k = base64.b64decode(data['audio_event']['audio_base_64'])
@@ -174,6 +200,8 @@ class AudioBridge(threading.Thread):
                     logger.info("✅ Áudio enviado para SIP!")
                 except Exception as audio_err:
                     logger.error(f"❌ Erro ao enviar áudio para SIP: {audio_err}")
+                    logger.error(f"Tipo do objeto call: {type(self.call)}")
+                    logger.error(f"Métodos de áudio: {[m for m in dir(self.call) if 'audio' in m.lower() or 'write' in m.lower()]}")
                 
             elif msg_type == 'agent_response':
                 logger.info(f"🤖 Agente: {data['agent_response'].get('text', '...')}")
