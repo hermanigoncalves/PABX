@@ -92,7 +92,74 @@ app.post('/make-call', async (req, res) => {
               prompt: `O nome do lead é ${leadName || 'o cliente'}. Use este nome de forma natural.`
             }
           }
-      if(message.type === 'agent_response') {
+        }
+      }));
+
+      // 3. Iniciar chamada SIP
+      try {
+        console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
+
+        const userAgent = new UserAgent({
+          uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
+          transportOptions: {
+            server: `wss://${FACILPABX_HOST}:${SIP_PORT}`,
+            traceSip: true
+          },
+          authorizationUsername: FACILPABX_USER,
+          authorizationPassword: FACILPABX_PASSWORD,
+        });
+
+        console.log('🔄 Conectando ao PABX...');
+        await userAgent.start();
+        console.log('✅ Conectado ao PABX! Registrando...');
+
+        await userAgent.register();
+        console.log('✅ Registrado! Iniciando discagem...');
+
+        const target = UserAgent.makeURI(`sip:${phoneNumber}@${FACILPABX_HOST}`);
+        if (!target) {
+          throw new Error('URI de destino inválida');
+        }
+
+        const inviter = new Inviter(userAgent, target);
+
+        // Configurar eventos da sessão
+        inviter.stateChange.addListener((newState) => {
+          console.log(`📞 Estado da chamada SIP: ${newState}`);
+          if (newState === 'Established') {
+            console.log('✅ Chamada ATENDIDA!');
+          }
+        });
+
+        await inviter.invite();
+        console.log(`🚀 Convite SIP enviado para ${phoneNumber}`);
+
+        activeCalls.set(callId, {
+          phoneNumber,
+          leadName,
+          ws,
+          userAgent,
+          inviter,
+          startTime: new Date()
+        });
+
+        res.json({
+          success: true,
+          message: 'Chamada SIP iniciada e discando...',
+          callId: callId
+        });
+
+      } catch (sipError) {
+        console.error('❌ Erro SIP:', sipError.message);
+        // Não fechar o WS imediatamente para podermos ver o erro no log, mas idealmente fecharia
+        // ws.close();
+        throw sipError;
+      }
+    });
+
+    ws.on('message', (data) => {
+      const message = JSON.parse(data.toString());
+      if (message.type === 'agent_response') {
         console.log(`🤖 Agente: ${message.agent_response?.text}`);
       }
       if (message.type === 'audio') {
