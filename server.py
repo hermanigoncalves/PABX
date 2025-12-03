@@ -215,12 +215,22 @@ def make_call():
         except:
             pass
             
-        # Tentar pegar ID de várias formas ou gerar um
-        call_id = getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
+        # Tentar pegar ID de várias formas (o log mostrou que é call_id)
+        call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
         
         # Iniciar Bridge em background
         bridge = AudioBridge(call, signed_url, lead_name, call_id)
         bridge.start()
+
+        # Monitorar estado da chamada por 5 segundos para debug
+        def monitor_call(c, cid):
+            for _ in range(10):
+                time.sleep(0.5)
+                logger.info(f"👀 Estado da chamada {cid}: {c.state}")
+                if c.state == CallState.ANSWERED:
+                    break
+        
+        threading.Thread(target=monitor_call, args=(call, call_id), daemon=True).start()
 
         return jsonify({
             "success": True,
