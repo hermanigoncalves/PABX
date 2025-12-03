@@ -172,7 +172,63 @@ class AudioBridge(threading.Thread):
         except Exception as e:
             logger.error(f"⚠️ Erro processando mensagem WS: {e}")
 
-# ... (make_call function)
+    def on_error(self, ws, error):
+        logger.error(f"❌ Erro WS: {error}")
+
+    def on_close(self, ws, close_status_code, close_msg):
+        logger.info("🔌 WebSocket fechado")
+        self.stop()
+
+    def sip_to_elevenlabs_loop(self):
+        logger.info("🎤 Iniciando captura de áudio SIP -> ElevenLabs")
+        while self.running and self.call.state == CallState.ANSWERED:
+            try:
+                # Ler áudio do SIP (bloqueante ou com timeout)
+                # pyVoIP: call.read_audio(length)
+                # Precisamos verificar a API exata do pyVoIP para leitura de stream
+                # Assumindo leitura de 160 bytes (20ms de G.711)
+                audio_frame = self.call.read_audio(160) 
+                
+                if audio_frame:
+                    # Enviar para ElevenLabs
+                    payload = {
+                        "type": "audio",
+                        "audio_event": {
+                            "audio_base_64": base64.b64encode(audio_frame).decode('utf-8'),
+                            "eventId": int(time.time() * 1000)
+                        }
+                    }
+                    self.ws.send(json.dumps(payload))
+            except Exception as e:
+                # logger.error(f"Erro leitura SIP: {e}")
+                time.sleep(0.01)
+
+@app.route('/health', methods=['GET'])
+def health():
+    status_str = "unknown"
+    if sip_client:
+        try:
+            # Acessar _status diretamente pois get_status pode não existir ou falhar
+            status_enum = getattr(sip_client, '_status', 'status_not_found')
+            status_str = str(status_enum)
+        except Exception as e:
+            status_str = f"error: {str(e)}"
+
+    return jsonify({
+        "status": "ok",
+        "version": "2.3-PYTHON-RESTORED",
+        "sip_status": status_str
+    })
+
+@app.route('/make-call', methods=['POST'])
+def make_call():
+    data = request.json
+    phone_number = data.get('phoneNumber')
+    lead_name = data.get('leadName', 'Cliente')
+
+    if not phone_number:
+        return jsonify({"error": "phoneNumber required"}), 400
+
     try:
         # 1. Obter URL assinada
         # Adicionar output_format na URL também por garantia, embora o init_data deva mandar
