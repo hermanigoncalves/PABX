@@ -138,7 +138,9 @@ class AudioBridge(threading.Thread):
                 }
             }
         }
+        logger.info(f"📤 Enviando configuração inicial: {json.dumps(init_data, indent=2)}")
         ws.send(json.dumps(init_data))
+        logger.info("✅ Configuração enviada, aguardando áudio...")
         
         # Iniciar thread de leitura do SIP -> ElevenLabs
         threading.Thread(target=self.sip_to_elevenlabs_loop, daemon=True).start()
@@ -146,9 +148,13 @@ class AudioBridge(threading.Thread):
     def on_message(self, ws, message):
         try:
             data = json.loads(message)
-            if data['type'] == 'audio':
+            msg_type = data.get('type', 'unknown')
+            
+            if msg_type == 'audio':
                 # Recebeu áudio do ElevenLabs (Base64) - PCM 16kHz 16-bit
+                logger.info(f"🔊 Recebido chunk de áudio do ElevenLabs")
                 chunk_16k = base64.b64decode(data['audio_event']['audio_base_64'])
+                logger.info(f"📊 Tamanho do áudio: {len(chunk_16k)} bytes")
                 
                 # Converter 16kHz -> 8kHz (pyVoIP usa G.711 8kHz)
                 # Manual downsampling usando struct (seguro contra falta de libs)
@@ -162,15 +168,26 @@ class AudioBridge(threading.Thread):
                 # Empacotar de volta para bytes
                 chunk_8k = struct.pack(f"<{len(samples_8k)}h", *samples_8k)
                 
-                self.call.write_audio(chunk_8k)
+                logger.info(f"✅ Áudio convertido: {len(chunk_8k)} bytes, enviando para chamada SIP...")
+                try:
+                    self.call.write_audio(chunk_8k)
+                    logger.info("✅ Áudio enviado para SIP!")
+                except Exception as audio_err:
+                    logger.error(f"❌ Erro ao enviar áudio para SIP: {audio_err}")
                 
-            elif data['type'] == 'agent_response':
+            elif msg_type == 'agent_response':
                 logger.info(f"🤖 Agente: {data['agent_response'].get('text', '...')}")
-            elif data['type'] == 'interruption':
+            elif msg_type == 'interruption':
                 logger.info("🛑 Interrupção detectada pelo ElevenLabs")
-                self.call.stop_audio() 
+                try:
+                    self.call.stop_audio()
+                except:
+                    pass
+            else:
+                logger.info(f"📩 Mensagem ElevenLabs: {msg_type}")
         except Exception as e:
             logger.error(f"⚠️ Erro processando mensagem WS: {e}")
+            logger.error(f"Mensagem raw: {message[:200]}")
 
     def on_error(self, ws, error):
         logger.error(f"❌ Erro WS: {error}")
@@ -248,13 +265,22 @@ def make_call():
             # pyVoIP usa PCMU/PCMA por padrão.
             
             call = sip_client.call(phone_number)
+            logger.info(f"✅ Objeto de chamada criado: {type(call)}")
+            logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
             
             # Tentar pegar ID de várias formas (o log mostrou que é call_id)
             call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
+            logger.info(f"🆔 Call ID: {call_id}")
+            
+            # Aguardar um pouco para a chamada ser estabelecida
+            time.sleep(1)
+            logger.info(f"📞 Estado inicial da chamada: {call.state}")
             
             # Iniciar Bridge em background
+            logger.info("🌉 Iniciando bridge de áudio...")
             bridge = AudioBridge(call, signed_url, lead_name, call_id)
             bridge.start()
+            logger.info("✅ Bridge iniciado!")
 
             # Monitorar estado da chamada por 5 segundos para debug
             def monitor_call(c, cid):
