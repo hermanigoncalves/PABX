@@ -5,6 +5,7 @@ import time
 import logging
 import base64
 import queue
+import audioop
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from pyVoIP.VoIP import VoIPPhone, CallState, InvalidStateError, PhoneStatus
@@ -118,12 +119,6 @@ class AudioBridge(threading.Thread):
         except:
             pass
         logger.info("🛑 Bridge finalizado.")
-
-import audioop
-
-# ... (existing imports)
-
-# ... (AudioBridge class)
 
     def on_open(self, ws):
         logger.info("🔗 WebSocket ElevenLabs Conectado")
