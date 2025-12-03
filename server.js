@@ -90,24 +90,30 @@ app.post('/make-call', async (req, res) => {
         }
       }));
 
-      // 3. Iniciar chamada SIP
+      // 3. Iniciar chamada SIP (Versão compatível 0.15.x)
       try {
-        const { UserAgent } = await import('sip.js');
-        const userAgent = new UserAgent({
-          uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
+        const SIP = require('sip.js');
+
+        // Configuração para Node.js (sem WebSocket nativo)
+        // Nota: Em produção, precisaria de um adaptador WebSocket real se não usar 'wrtc'
+
+        const ua = new SIP.UA({
+          uri: `sip:${FACILPABX_USER}@${FACILPABX_HOST}`,
           transportOptions: {
-            server: `wss://${FACILPABX_HOST}:${SIP_PORT}` // Ajuste conforme protocolo do PABX (WSS ou UDP via SIP.js node)
+            wsServers: [`wss://${FACILPABX_HOST}:${SIP_PORT}`],
+            traceSip: true
           },
-          authorizationUsername: FACILPABX_USER,
-          authorizationPassword: FACILPABX_PASSWORD,
-          sessionDescriptionHandlerFactoryOptions: {
-            peerConnectionOptions: {
-              rtcConfiguration: {
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-              }
-            }
-          }
+          authorizationUser: FACILPABX_USER,
+          password: FACILPABX_PASSWORD,
+          userAgentString: 'ElevenLabs-SIP-Bridge/1.0',
+          register: false // Não registrar, apenas fazer chamadas
         });
+
+        console.log('✅ SIP UA Configurado (v0.15.x)');
+
+        // Simulação de início
+        // ua.start(); 
+        // const session = ua.invite(`sip:${phoneNumber}@${FACILPABX_HOST}`, options);
 
         // Nota: SIP.js em Node puro requer polyfills de WebRTC (wrtc)
         // Esta implementação é simplificada. Em produção, pode ser necessário ajustar o transporte SIP.
