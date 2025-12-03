@@ -35,6 +35,12 @@ if not all([ELEVENLABS_AGENT_ID, ELEVENLABS_API_KEY, FACILPABX_HOST, FACILPABX_U
 # Cliente SIP Global
 sip_client = None
 
+def get_public_ip():
+    try:
+        return requests.get('https://api.ipify.org', timeout=5).text
+    except:
+        return "0.0.0.0"
+
 def incoming_call_handler(call):
     logger.info("📞 Chamada recebida (não implementado atendimento automático ainda)")
     try:
@@ -45,13 +51,16 @@ def incoming_call_handler(call):
 def start_sip_client():
     global sip_client
     try:
+        public_ip = get_public_ip()
+        logger.info(f"🌍 IP Público detectado: {public_ip}")
+        
         logger.info(f"🔄 Iniciando cliente SIP ({FACILPABX_USER}@{FACILPABX_HOST})...")
         sip_client = VoIPPhone(
             server=FACILPABX_HOST,
             port=SIP_PORT,
             username=FACILPABX_USER,
             password=FACILPABX_PASSWORD,
-            myIP="0.0.0.0", # Escutar em todas as interfaces
+            myIP=public_ip, # Usar IP público para o Header Contact
             sipPort=SIP_PORT,
             callCallback=incoming_call_handler
         )
