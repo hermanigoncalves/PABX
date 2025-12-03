@@ -100,6 +100,29 @@ app.post('/make-call', async (req, res) => {
       try {
         console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
 
+        // Hack para SIP.js encontrar o WebRTC no Node
+        if (wrtc) {
+          // Polyfill para addEventListener (que falta no wrtc mas o SIP.js exige)
+          if (!wrtc.RTCPeerConnection.prototype.addEventListener) {
+            wrtc.RTCPeerConnection.prototype.addEventListener = function (type, fn) {
+              if (type === 'icecandidate') this.onicecandidate = fn;
+              if (type === 'track') this.ontrack = fn;
+              if (type === 'iceconnectionstatechange') this.oniceconnectionstatechange = fn;
+              if (type === 'connectionstatechange') this.onconnectionstatechange = fn;
+              if (type === 'signalingstatechange') this.onsignalingstatechange = fn;
+              if (type === 'negotiationneeded') this.onnegotiationneeded = fn;
+            };
+            wrtc.RTCPeerConnection.prototype.removeEventListener = function () { }; // No-op
+          }
+
+          global.RTCPeerConnection = wrtc.RTCPeerConnection;
+          global.RTCSessionDescription = wrtc.RTCSessionDescription;
+          global.RTCIceCandidate = wrtc.RTCIceCandidate;
+          global.navigator = { userAgent: 'node' };
+          global.window = global;
+          console.log('✅ WebRTC (wrtc) injetado no ambiente global para SIP.js');
+        }
+
         const userAgent = new UserAgent({
           uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
           transportOptions: {
