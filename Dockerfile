@@ -1,6 +1,6 @@
-FROM node:16-bullseye
+FROM node:18-bullseye
 
-# Instalar dependências do sistema para wrtc (WebRTC)
+# Instalar dependências do sistema necessárias para o @roamhq/wrtc
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
@@ -11,8 +11,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Instalar dependências do Node (forçando build do wrtc se necessário)
-RUN npm install --build-from-source
+# Instalar dependências do Node
+RUN npm install
 
 COPY . .
 

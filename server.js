@@ -15,8 +15,8 @@ try {
   // Vamos tentar createRequire para garantir compatibilidade com o pacote nativo CJS
   import { createRequire } from 'module';
   const require = createRequire(import.meta.url);
-  wrtc = require('wrtc');
-  console.log('✅ wrtc (WebRTC) carregado com sucesso');
+  wrtc = require('@roamhq/wrtc');
+  console.log('✅ @roamhq/wrtc (WebRTC) carregado com sucesso');
 } catch (error) {
   console.error('⚠️ Falha ao carregar wrtc:', error.message);
   console.error('O suporte a áudio SIP NÃO funcionará.');
