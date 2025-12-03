@@ -13,8 +13,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Configurar npm para usar python3
-RUN npm config set python python3
+# Configurar variável de ambiente para o Python (mais seguro que npm config)
+ENV PYTHON=/usr/bin/python3
 
 # Instalar dependências (agora com ferramentas para compilar se necessário)
 RUN npm install
