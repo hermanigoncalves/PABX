@@ -1,27 +1,23 @@
-FROM node:18
-
-# Instalar dependências de compilação robustas
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    build-essential \
-    libasound2-dev \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+# Instalar dependências do sistema (necessário para algumas libs de áudio se precisarmos)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-# Definir variável de ambiente para o Python 3
-ENV PYTHON=/usr/bin/python3
+COPY requirements.txt .
 
-# Limpar cache e instalar dependências
-RUN npm cache clean --force && npm install
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Porta da API HTTP
 EXPOSE 3000
+# Porta SIP (UDP)
 EXPOSE 5060/udp
+# Porta RTP (UDP) - Intervalo comum, ajustável no código
+EXPOSE 10000-20000/udp
 
-CMD ["node", "server.js"]
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:3000", "server:app"]
