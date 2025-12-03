@@ -120,7 +120,8 @@ app.post('/make-call', async (req, res) => {
           global.RTCIceCandidate = wrtc.RTCIceCandidate;
           global.navigator = { userAgent: 'node' };
           global.window = global;
-          console.log('✅ WebRTC (wrtc) injetado no ambiente global para SIP.js');
+          global.WebSocket = WebSocket; // Injetar WebSocket globalmente para o SIP.js
+          console.log('✅ WebRTC (wrtc) e WebSocket injetados no ambiente global para SIP.js');
         }
 
         const userAgent = new UserAgent({
