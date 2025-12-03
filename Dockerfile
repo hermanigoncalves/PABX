@@ -1,23 +1,23 @@
-FROM node:18-bullseye
+FROM node:18
 
-# Instalar dependências de compilação (necessário para @roamhq/wrtc)
+# Instalar dependências de compilação robustas
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
-    pkg-config \
+    build-essential \
     libasound2-dev \
-    python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package*.json ./
 
-# Instalar dependências
+# Definir variável de ambiente para o Python 3
+ENV PYTHON=/usr/bin/python3
 
-# Instalar dependências
-RUN npm install
+# Limpar cache e instalar dependências
+RUN npm cache clean --force && npm install
 
 COPY . .
 
