@@ -64,6 +64,8 @@ def start_sip_client():
             password=FACILPABX_PASSWORD,
             myIP="0.0.0.0", # Bind local (evita erro 99)
             sipPort=SIP_PORT,
+            rtpPortLow=10000, # Porta RTP Mínima (Exposta no Docker)
+            rtpPortHigh=20000, # Porta RTP Máxima (Exposta no Docker)
             callCallback=incoming_call_handler
         )
         
@@ -71,7 +73,7 @@ def start_sip_client():
         sip_client.myIP = public_ip 
         
         sip_client.start()
-        logger.info(f"✅ Cliente SIP iniciado. IP Local: 0.0.0.0, IP Anunciado: {public_ip}")
+        logger.info(f"✅ Cliente SIP iniciado. IP Local: 0.0.0.0, IP Anunciado: {public_ip}, RTP: 10000-20000")
     except Exception as e:
         logger.error(f"❌ Erro ao iniciar cliente SIP: {e}")
 
@@ -147,9 +149,11 @@ class AudioBridge(threading.Thread):
                 # Assumindo que ElevenLabs manda PCM e pyVoIP converte, ou precisamos converter.
                 # Simplificação: Enviar raw bytes para o call.write_audio
                 self.call.write_audio(chunk)
+                # logger.debug(f"🔊 Áudio enviado para SIP ({len(chunk)} bytes)") # Debug flood
             elif data['type'] == 'agent_response':
                 logger.info(f"🤖 Agente: {data['agent_response'].get('text', '...')}")
             elif data['type'] == 'interruption':
+                logger.info("🛑 Interrupção detectada pelo ElevenLabs")
                 self.call.stop_audio() # Parar áudio atual se houver interrupção
         except Exception as e:
             logger.error(f"⚠️ Erro processando mensagem WS: {e}")
