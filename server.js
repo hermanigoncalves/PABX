@@ -6,14 +6,11 @@ import { WebSocket } from 'ws';
 import cors from 'cors';
 import axios from 'axios';
 import { UserAgent, Inviter } from 'sip.js';
+import { createRequire } from 'module';
 
 // Tentar importar wrtc opcionalmente
-// Tentar importar wrtc
 let wrtc;
 try {
-  // Em Node 16 com ESM e wrtc, a importação pode ser tricky. 
-  // Vamos tentar createRequire para garantir compatibilidade com o pacote nativo CJS
-  import { createRequire } from 'module';
   const require = createRequire(import.meta.url);
   wrtc = require('@roamhq/wrtc');
   console.log('✅ @roamhq/wrtc (WebRTC) carregado com sucesso');
