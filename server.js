@@ -100,6 +100,9 @@ app.post('/make-call', async (req, res) => {
       try {
         console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
 
+        // Injetar WebSocket globalmente para o SIP.js (Necessário para sinalização, independente do WebRTC)
+        global.WebSocket = WebSocket;
+
         // Hack para SIP.js encontrar o WebRTC no Node
         if (wrtc) {
           global.RTCPeerConnection = wrtc.RTCPeerConnection;
@@ -107,7 +110,6 @@ app.post('/make-call', async (req, res) => {
           global.RTCIceCandidate = wrtc.RTCIceCandidate;
           global.navigator = { userAgent: 'node' };
           global.window = global;
-          global.WebSocket = WebSocket;
 
           // Polyfill para addEventListener (aplicado no protótipo global)
           if (global.RTCPeerConnection && !global.RTCPeerConnection.prototype.addEventListener) {
