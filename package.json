@@ -1,8 +1,10 @@
+```json
 {
-    "name": "elevenlabs-sip-bridge",
+    "name": "sip-bridge",
     "version": "1.0.0",
-    "description": "Ponte SIP entre Fácil PABX e ElevenLabs Conversational AI",
+    "description": "Bridge entre ElevenLabs e SIP/PABX",
     "main": "server.js",
+    "type": "module",
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js"
@@ -13,7 +15,7 @@
         "dotenv": "^16.3.1",
         "cors": "^2.8.5",
         "axios": "^1.6.0",
-        "sip.js": "^0.15.10"
+        "sip.js": "^0.21.2"
     },
     "devDependencies": {
         "nodemon": "^3.0.1"
@@ -24,3 +26,4 @@
     "author": "Revier",
     "license": "MIT"
 }
+```

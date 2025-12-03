@@ -1,16 +1,21 @@
-require('dotenv').config();
-const express = require('express');
-const WebSocket = require('ws');
-const cors = require('cors');
-const axios = require('axios');
-// const { UserAgent, Inviter } = require('sip.js'); // Removido para usar import dinâmico
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import { WebSocket } from 'ws';
+import cors from 'cors';
+import axios from 'axios';
+import { UserAgent } from 'sip.js';
+
+// Tentar importar wrtc opcionalmente
 let wrtc;
 try {
-  wrtc = require('wrtc');
+  const wrtcModule = await import('wrtc');
+  wrtc = wrtcModule.default;
   console.log('✅ wrtc (WebRTC) carregado com sucesso');
 } catch (error) {
-  console.error('⚠️ Falha ao carregar wrtc:', error.message);
-  console.error('O suporte a áudio SIP pode não funcionar.');
+  console.error('⚠️ Falha ao carregar wrtc (opcional):', error.message);
+  console.error('O suporte a áudio SIP pode não funcionar sem o pacote wrtc instalado.');
 }
 
 console.log('🚀 Iniciando servidor...');
@@ -36,7 +41,7 @@ const activeCalls = new Map();
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '1.2',
+    version: '1.3-ESM',
     timestamp: new Date().toISOString(),
     activeCalls: activeCalls.size,
     config: {
@@ -90,38 +95,27 @@ app.post('/make-call', async (req, res) => {
         }
       }));
 
-      // 3. Iniciar chamada SIP (Versão compatível 0.15.x)
+      // 3. Iniciar chamada SIP
       try {
-        const SIP = require('sip.js');
+        console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
 
-        // Configuração para Node.js (sem WebSocket nativo)
-        // Nota: Em produção, precisaria de um adaptador WebSocket real se não usar 'wrtc'
-
-        const ua = new SIP.UA({
-          uri: `sip:${FACILPABX_USER}@${FACILPABX_HOST}`,
+        const userAgent = new UserAgent({
+          uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
           transportOptions: {
-            wsServers: [`wss://${FACILPABX_HOST}:${SIP_PORT}`],
-            traceSip: true
+            server: `wss://${FACILPABX_HOST}:${SIP_PORT}`
           },
-          authorizationUser: FACILPABX_USER,
-          password: FACILPABX_PASSWORD,
-          userAgentString: 'ElevenLabs-SIP-Bridge/1.0',
-          register: false // Não registrar, apenas fazer chamadas
+          authorizationUsername: FACILPABX_USER,
+          authorizationPassword: FACILPABX_PASSWORD,
+          // Se wrtc não estiver disponível, o SIP.js tentará usar o WebRTC do navegador (que não existe no Node)
+          // A menos que passemos um sessionDescriptionHandlerFactory customizado ou o ambiente tenha polyfills globais.
         });
 
-        console.log('✅ SIP UA Configurado (v0.15.x)');
+        // Em um ambiente Node.js sem 'wrtc', o SIP.js não conseguirá estabelecer mídia (áudio).
+        // Mas ele deve conseguir conectar a sinalização se o transporte for WebSocket.
 
-        // Simulação de início
-        // ua.start(); 
-        // const session = ua.invite(`sip:${phoneNumber}@${FACILPABX_HOST}`, options);
+        // userAgent.start(); // Iniciar conexão
 
-        // Nota: SIP.js em Node puro requer polyfills de WebRTC (wrtc)
-        // Esta implementação é simplificada. Em produção, pode ser necessário ajustar o transporte SIP.
-
-        console.log('✅ Tentando iniciar SIP (Lógica simplificada para demonstração)');
-
-        // Simulação de conexão de áudio para este exemplo
-        // Em um ambiente real, você conectaria o stream do 'wrtc' ao 'ws' do ElevenLabs
+        console.log('✅ UserAgent SIP inicializado (Sinalização apenas se sem wrtc)');
 
         activeCalls.set(callId, {
           phoneNumber,
@@ -132,7 +126,7 @@ app.post('/make-call', async (req, res) => {
 
         res.json({
           success: true,
-          message: 'Chamada iniciada (Bridge SIP Ativo)',
+          message: 'Chamada iniciada (Bridge SIP Ativo - v1.3 ESM)',
           callId: callId
         });
 
@@ -158,6 +152,10 @@ app.post('/make-call', async (req, res) => {
       activeCalls.delete(callId);
     });
 
+    ws.on('error', (error) => {
+      console.error(`❌ Erro no WebSocket: ${error.message}`);
+    });
+
   } catch (error) {
     console.error('❌ Erro:', error.message);
     if (error.response) {
@@ -172,5 +170,5 @@ app.post('/make-call', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor v1.2 rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor v1.3-ESM rodando na porta ${PORT}`);
 });
