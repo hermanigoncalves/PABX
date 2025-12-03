@@ -5,7 +5,7 @@ import time
 import logging
 import base64
 import queue
-import audioop
+import struct
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from pyVoIP.VoIP import VoIPPhone, CallState, InvalidStateError, PhoneStatus
@@ -147,12 +147,26 @@ class AudioBridge(threading.Thread):
         try:
             data = json.loads(message)
             if data['type'] == 'audio':
+import struct
+
+# ... (imports)
+
+# ... (inside on_message)
+            if data['type'] == 'audio':
                 # Recebeu áudio do ElevenLabs (Base64) - PCM 16kHz 16-bit
                 chunk_16k = base64.b64decode(data['audio_event']['audio_base_64'])
                 
                 # Converter 16kHz -> 8kHz (pyVoIP usa G.711 8kHz)
-                # width=2 (16-bit), channels=1
-                chunk_8k, _ = audioop.ratecv(chunk_16k, 2, 1, 16000, 8000, None)
+                # Manual downsampling usando struct (seguro contra falta de libs)
+                # Desempacotar bytes em short integers (16-bit little endian)
+                count = len(chunk_16k) // 2
+                samples = struct.unpack(f"<{count}h", chunk_16k)
+                
+                # Pegar cada segunda amostra (Downsample 2x)
+                samples_8k = samples[::2]
+                
+                # Empacotar de volta para bytes
+                chunk_8k = struct.pack(f"<{len(samples_8k)}h", *samples_8k)
                 
                 self.call.write_audio(chunk_8k)
                 
