@@ -93,80 +93,102 @@ app.post('/make-call', async (req, res) => {
               prompt: `O nome do lead é ${leadName || 'o cliente'}. Use este nome de forma natural.`
             }
           }
+        }
+      }));
+
+      // 3. Iniciar chamada SIP
+      try {
+        console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
+
+        const userAgent = new UserAgent({
+          uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
+          transportOptions: {
+            server: `wss://${FACILPABX_HOST}:${SIP_PORT}`,
+            traceSip: true
+          },
+          authorizationUsername: FACILPABX_USER,
+          authorizationPassword: FACILPABX_PASSWORD,
+        });
+
+        console.log('🔄 Conectando ao PABX...');
+        await userAgent.start();
+        console.log('✅ Conectado ao PABX! Registrando...');
+
+        await userAgent.register();
         console.log('✅ Registrado! Iniciando discagem...');
 
-          const target = UserAgent.makeURI(`sip:${phoneNumber}@${FACILPABX_HOST}`);
-          if(!target) {
-            throw new Error('URI de destino inválida');
-          }
+        const target = UserAgent.makeURI(`sip:${phoneNumber}@${FACILPABX_HOST}`);
+        if (!target) {
+          throw new Error('URI de destino inválida');
+        }
 
         const inviter = new Inviter(userAgent, target);
 
-          // Configurar eventos da sessão
-          inviter.stateChange.addListener((newState) => {
-            console.log(`📞 Estado da chamada SIP: ${newState}`);
-            if (newState === 'Established') {
-              console.log('✅ Chamada ATENDIDA!');
-            }
-          });
+        // Configurar eventos da sessão
+        inviter.stateChange.addListener((newState) => {
+          console.log(`📞 Estado da chamada SIP: ${newState}`);
+          if (newState === 'Established') {
+            console.log('✅ Chamada ATENDIDA!');
+          }
+        });
 
-          await inviter.invite();
-          console.log(`🚀 Convite SIP enviado para ${phoneNumber}`);
+        await inviter.invite();
+        console.log(`🚀 Convite SIP enviado para ${phoneNumber}`);
 
-          activeCalls.set(callId, {
-            phoneNumber,
-            leadName,
-            ws,
-            userAgent,
-            inviter,
-            startTime: new Date()
-          });
+        activeCalls.set(callId, {
+          phoneNumber,
+          leadName,
+          ws,
+          userAgent,
+          inviter,
+          startTime: new Date()
+        });
 
-          res.json({
-            success: true,
-            message: 'Chamada SIP iniciada e discando...',
-            callId: callId
-          });
+        res.json({
+          success: true,
+          message: 'Chamada SIP iniciada e discando...',
+          callId: callId
+        });
 
-        } catch(sipError) {
-          console.error('❌ Erro SIP:', sipError.message);
-          // Não fechar o WS imediatamente para podermos ver o erro no log, mas idealmente fecharia
-          // ws.close();
-          throw sipError;
-        }
-      });
-
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        if (message.type === 'agent_response') {
-          console.log(`🤖 Agente: ${message.agent_response?.text}`);
-        }
-        if (message.type === 'audio') {
-          // Aqui o áudio base64 do ElevenLabs seria enviado para o stream SIP
-        }
-      });
-
-      ws.on('close', () => {
-        console.log(`🔌 WebSocket fechado: ${callId}`);
-        activeCalls.delete(callId);
-      });
-
-      ws.on('error', (error) => {
-        console.error(`❌ Erro no WebSocket: ${error.message}`);
-      });
-
-    } catch (error) {
-      console.error('❌ Erro:', error.message);
-      if (error.response) {
-        console.error('Detalhes da resposta:', JSON.stringify(error.response.data));
+      } catch (sipError) {
+        console.error('❌ Erro SIP:', sipError.message);
+        // Não fechar o WS imediatamente para podermos ver o erro no log, mas idealmente fecharia
+        // ws.close();
+        throw sipError;
       }
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        details: error.response ? error.response.data : null
-      });
+    });
+
+    ws.on('message', (data) => {
+      const message = JSON.parse(data.toString());
+      if (message.type === 'agent_response') {
+        console.log(`🤖 Agente: ${message.agent_response?.text}`);
+      }
+      if (message.type === 'audio') {
+        // Aqui o áudio base64 do ElevenLabs seria enviado para o stream SIP
+      }
+    });
+
+    ws.on('close', () => {
+      console.log(`🔌 WebSocket fechado: ${callId}`);
+      activeCalls.delete(callId);
+    });
+
+    ws.on('error', (error) => {
+      console.error(`❌ Erro no WebSocket: ${error.message}`);
+    });
+
+  } catch (error) {
+    console.error('❌ Erro:', error.message);
+    if (error.response) {
+      console.error('Detalhes da resposta:', JSON.stringify(error.response.data));
     }
-  });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.response ? error.response.data : null
+    });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor v1.3-ESM rodando na porta ${PORT}`);
