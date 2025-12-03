@@ -7,14 +7,14 @@ RUN apt-get update && apt-get install -y \
     g++ \
     pkg-config \
     libasound2-dev \
+    python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package*.json ./
 
-# Criar link simbólico para que 'python' aponte para 'python3'
-RUN ln -s /usr/bin/python3 /usr/bin/python
+# Instalar dependências
 
 # Instalar dependências
 RUN npm install
