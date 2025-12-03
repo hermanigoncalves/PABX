@@ -1,4 +1,4 @@
-FROM node:18-bullseye
+FROM node:16-bullseye
 
 # Instalar dependências do sistema para wrtc (WebRTC)
 RUN apt-get update && apt-get install -y \
@@ -11,8 +11,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Instalar dependências do Node
-RUN npm install
+# Instalar dependências do Node (forçando build do wrtc se necessário)
+RUN npm install --build-from-source
 
 COPY . .
 
