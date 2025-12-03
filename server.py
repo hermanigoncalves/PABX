@@ -62,17 +62,18 @@ def incoming_call_handler(call):
 
 # Thread de Bridge de Áudio (Um por chamada)
 class AudioBridge(threading.Thread):
-    def __init__(self, call, signed_url, lead_name):
+    def __init__(self, call, signed_url, lead_name, call_id="unknown"):
         threading.Thread.__init__(self)
         self.call = call
         self.signed_url = signed_url
         self.lead_name = lead_name
+        self.call_id = call_id
         self.ws = None
         self.running = True
         self.audio_queue = queue.Queue()
 
     def run(self):
-        logger.info(f"🚀 Iniciando Bridge de Áudio para chamada {self.call.callID}")
+        logger.info(f"🚀 Iniciando Bridge de Áudio para chamada {self.call_id}")
         
         # Conectar ao ElevenLabs
         try:
@@ -197,18 +198,25 @@ def make_call():
         # 2. Iniciar Chamada SIP
         logger.info(f"📞 Discando para {phone_number}...")
         
-        # pyVoIP call é bloqueante na discagem até atender ou falhar? 
-        # Geralmente retorna um objeto Call que podemos monitorar.
         call = sip_client.call(phone_number)
         
+        # DEBUG: Ver o que tem dentro do objeto call
+        try:
+            logger.info(f"🔍 Atributos do Call: {dir(call)}")
+        except:
+            pass
+            
+        # Tentar pegar ID de várias formas ou gerar um
+        call_id = getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
+        
         # Iniciar Bridge em background
-        bridge = AudioBridge(call, signed_url, lead_name)
+        bridge = AudioBridge(call, signed_url, lead_name, call_id)
         bridge.start()
 
         return jsonify({
             "success": True,
             "message": "Chamada iniciada",
-            "callId": call.callID
+            "callId": call_id
         })
 
     except Exception as e:
