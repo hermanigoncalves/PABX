@@ -55,17 +55,23 @@ def start_sip_client():
         logger.info(f"🌍 IP Público detectado: {public_ip}")
         
         logger.info(f"🔄 Iniciando cliente SIP ({FACILPABX_USER}@{FACILPABX_HOST})...")
+        
+        # TRUQUE NAT: Bind no 0.0.0.0 (interno) mas anunciar IP Público nos headers
         sip_client = VoIPPhone(
             server=FACILPABX_HOST,
             port=SIP_PORT,
             username=FACILPABX_USER,
             password=FACILPABX_PASSWORD,
-            myIP=public_ip, # Usar IP público para o Header Contact
+            myIP="0.0.0.0", # Bind local (evita erro 99)
             sipPort=SIP_PORT,
             callCallback=incoming_call_handler
         )
+        
+        # Substituir IP para os headers SIP (Contact/Via)
+        sip_client.myIP = public_ip 
+        
         sip_client.start()
-        logger.info("✅ Cliente SIP iniciado e rodando em background.")
+        logger.info(f"✅ Cliente SIP iniciado. IP Local: 0.0.0.0, IP Anunciado: {public_ip}")
     except Exception as e:
         logger.error(f"❌ Erro ao iniciar cliente SIP: {e}")
 
