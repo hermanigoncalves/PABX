@@ -16,7 +16,7 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 80
+EXPOSE 3000
 EXPOSE 5060/udp
 
 CMD ["node", "server.js"]

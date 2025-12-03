@@ -19,7 +19,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3000;
 const SIP_PORT = process.env.SIP_PORT || 5060;
 
 // Configurações
