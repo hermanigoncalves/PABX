@@ -112,10 +112,15 @@ class AudioBridge(threading.Thread):
             logger.error(f"❌ Timeout aguardando chamada ser atendida (estado final: {self.call.state})")
             return
         
-        logger.info("✅ Chamada ATENDIDA! Iniciando bridge de áudio...")
+        logger.info("=" * 80)
+        logger.info("✅ Chamada ATENDIDA! Iniciando bridge de áudio com ElevenLabs...")
+        logger.info("=" * 80)
         
         # Conectar ao ElevenLabs
         try:
+            logger.info(f"🔗 Conectando ao WebSocket ElevenLabs...")
+            logger.info(f"   URL: {self.signed_url[:80]}...")
+            
             self.ws = websocket.WebSocketApp(
                 self.signed_url,
                 on_open=self.on_open,
@@ -124,10 +129,14 @@ class AudioBridge(threading.Thread):
                 on_close=self.on_close
             )
             
+            logger.info("🚀 Iniciando loop do WebSocket...")
             # Rodar WS em loop bloqueante (mas dentro desta thread)
             self.ws.run_forever()
+            logger.info("🛑 Loop do WebSocket encerrado")
         except Exception as e:
             logger.error(f"❌ Erro fatal no Bridge: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
         finally:
             self.stop()
 
@@ -142,7 +151,9 @@ class AudioBridge(threading.Thread):
         logger.info("🛑 Bridge finalizado.")
 
     def on_open(self, ws):
-        logger.info("🔗 WebSocket ElevenLabs Conectado")
+        logger.info("=" * 80)
+        logger.info("🔗 WebSocket ElevenLabs CONECTADO COM SUCESSO!")
+        logger.info("=" * 80)
         
         # Enviar configuração inicial
         init_data = {
@@ -150,18 +161,26 @@ class AudioBridge(threading.Thread):
             "conversation_config_override": {
                 "agent": {
                     "prompt": {
-                        "prompt": f"O nome do lead é {self.lead_name}. Aja naturalmente."
+                        "prompt": f"O nome do lead é {self.lead_name}. Aja naturalmente e fale em português do Brasil."
                     },
-                    "first_message": f"Olá {self.lead_name}, tudo bem?",
+                    "first_message": f"Olá {self.lead_name}, tudo bem? Estou te ligando para confirmar algumas informações.",
                 },
                 "tts": {
                     "output_format": "pcm_16000" # Solicitar PCM 16kHz (vamos converter para 8kHz)
                 }
             }
         }
-        logger.info(f"📤 Enviando configuração inicial: {json.dumps(init_data, indent=2)}")
-        ws.send(json.dumps(init_data))
-        logger.info("✅ Configuração enviada, aguardando áudio...")
+        logger.info(f"📤 Enviando configuração inicial do agente:")
+        logger.info(f"   - Lead: {self.lead_name}")
+        logger.info(f"   - First message: {init_data['conversation_config_override']['agent']['first_message']}")
+        logger.info(f"   - Output format: pcm_16000")
+        
+        try:
+            ws.send(json.dumps(init_data))
+            logger.info("✅ Configuração enviada com sucesso!")
+            logger.info("⏳ Aguardando resposta do ElevenLabs...")
+        except Exception as e:
+            logger.error(f"❌ Erro ao enviar configuração: {e}")
         
         # Iniciar thread de leitura do SIP -> ElevenLabs
         threading.Thread(target=self.sip_to_elevenlabs_loop, daemon=True).start()
@@ -212,10 +231,21 @@ class AudioBridge(threading.Thread):
                 except:
                     pass
             else:
-                logger.info(f"📩 Mensagem ElevenLabs: {msg_type}")
+                logger.info(f"📩 Mensagem ElevenLabs tipo: {msg_type}")
+                # Log da mensagem completa (exceto áudio grande)
+                try:
+                    if len(message) < 500:
+                        logger.info(f"   Conteúdo: {message}")
+                    else:
+                        logger.info(f"   Conteúdo: (mensagem grande, {len(message)} bytes)")
+                except:
+                    pass
         except Exception as e:
             logger.error(f"⚠️ Erro processando mensagem WS: {e}")
-            logger.error(f"Mensagem raw: {message[:200]}")
+            try:
+                logger.error(f"Mensagem raw: {message[:200]}")
+            except:
+                logger.error("Não foi possível mostrar mensagem raw")
 
     def on_error(self, ws, error):
         logger.error(f"❌ Erro WS: {error}")
@@ -261,9 +291,31 @@ def health():
 
     return jsonify({
         "status": "ok",
-        "version": "2.3-PYTHON-RESTORED",
-        "sip_status": status_str
+        "version": "2.4-AUDIO-DEBUG",
+        "sip_status": status_str,
+        "pyvoip_version": getattr(__import__('pyVoIP'), '__version__', 'unknown')
     })
+
+# Endpoint para testar se write_audio funciona
+@app.route('/test-audio', methods=['GET'])
+def test_audio():
+    """Testa se o método write_audio existe e pode ser chamado"""
+    try:
+        # Verificar métodos disponíveis em uma chamada hipotética
+        info = {
+            "pyVoIP_imported": True,
+            "VoIPPhone_exists": hasattr(__import__('pyVoIP.VoIP', fromlist=['VoIPPhone']), 'VoIPPhone'),
+            "CallState_exists": hasattr(__import__('pyVoIP.VoIP', fromlist=['CallState']), 'CallState'),
+        }
+        
+        # Se houver sip_client, mostrar mais detalhes
+        if sip_client:
+            info["sip_client_type"] = str(type(sip_client))
+            info["sip_client_methods"] = [m for m in dir(sip_client) if not m.startswith('_')]
+        
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/make-call', methods=['POST'])
 def make_call():
@@ -276,12 +328,18 @@ def make_call():
 
     try:
         # 1. Obter URL assinada
-        # Adicionar output_format na URL também por garantia, embora o init_data deva mandar
+        logger.info("=" * 80)
+        logger.info("🔑 Obtendo URL assinada do ElevenLabs...")
+        logger.info("=" * 80)
         url = f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id={ELEVENLABS_AGENT_ID}"
         headers = {"xi-api-key": ELEVENLABS_API_KEY}
+        
+        logger.info(f"📡 Fazendo requisição para: {url}")
         resp = requests.get(url, headers=headers)
         resp.raise_for_status()
         signed_url = resp.json()['signed_url']
+        logger.info(f"✅ URL assinada obtida com sucesso!")
+        logger.info(f"   URL: {signed_url[:80]}...")
 
 
         # 2. Iniciar Chamada SIP
