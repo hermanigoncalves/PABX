@@ -15,7 +15,7 @@
         "cors": "^2.8.5",
         "axios": "^1.6.0",
         "sip.js": "^0.21.2",
-        "wrtc": "^0.4.7"
+        "@roamhq/wrtc": "^0.7.0"
     },
     "devDependencies": {
         "nodemon": "^3.0.1"
