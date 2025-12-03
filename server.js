@@ -102,9 +102,16 @@ app.post('/make-call', async (req, res) => {
 
         // Hack para SIP.js encontrar o WebRTC no Node
         if (wrtc) {
-          // Polyfill para addEventListener (que falta no wrtc mas o SIP.js exige)
-          if (!wrtc.RTCPeerConnection.prototype.addEventListener) {
-            wrtc.RTCPeerConnection.prototype.addEventListener = function (type, fn) {
+          global.RTCPeerConnection = wrtc.RTCPeerConnection;
+          global.RTCSessionDescription = wrtc.RTCSessionDescription;
+          global.RTCIceCandidate = wrtc.RTCIceCandidate;
+          global.navigator = { userAgent: 'node' };
+          global.window = global;
+          global.WebSocket = WebSocket;
+
+          // Polyfill para addEventListener (aplicado no protótipo global)
+          if (global.RTCPeerConnection && !global.RTCPeerConnection.prototype.addEventListener) {
+            global.RTCPeerConnection.prototype.addEventListener = function (type, fn) {
               if (type === 'icecandidate') this.onicecandidate = fn;
               if (type === 'track') this.ontrack = fn;
               if (type === 'iceconnectionstatechange') this.oniceconnectionstatechange = fn;
@@ -112,15 +119,9 @@ app.post('/make-call', async (req, res) => {
               if (type === 'signalingstatechange') this.onsignalingstatechange = fn;
               if (type === 'negotiationneeded') this.onnegotiationneeded = fn;
             };
-            wrtc.RTCPeerConnection.prototype.removeEventListener = function () { }; // No-op
+            global.RTCPeerConnection.prototype.removeEventListener = function () { }; // No-op
           }
 
-          global.RTCPeerConnection = wrtc.RTCPeerConnection;
-          global.RTCSessionDescription = wrtc.RTCSessionDescription;
-          global.RTCIceCandidate = wrtc.RTCIceCandidate;
-          global.navigator = { userAgent: 'node' };
-          global.window = global;
-          global.WebSocket = WebSocket; // Injetar WebSocket globalmente para o SIP.js
           console.log('✅ WebRTC (wrtc) e WebSocket injetados no ambiente global para SIP.js');
         }
 
