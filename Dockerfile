@@ -13,8 +13,10 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Instalar dependências (o npm deve encontrar o python automaticamente)
-RUN npm install
+# Criar link simbólico para que 'python' aponte para 'python3'
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Instalar dependências
 
 COPY . .
 
