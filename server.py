@@ -147,12 +147,6 @@ class AudioBridge(threading.Thread):
         try:
             data = json.loads(message)
             if data['type'] == 'audio':
-import struct
-
-# ... (imports)
-
-# ... (inside on_message)
-            if data['type'] == 'audio':
                 # Recebeu áudio do ElevenLabs (Base64) - PCM 16kHz 16-bit
                 chunk_16k = base64.b64decode(data['audio_event']['audio_base_64'])
                 
