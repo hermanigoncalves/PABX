@@ -119,6 +119,12 @@ class AudioBridge(threading.Thread):
             pass
         logger.info("🛑 Bridge finalizado.")
 
+import audioop
+
+# ... (existing imports)
+
+# ... (AudioBridge class)
+
     def on_open(self, ws):
         logger.info("🔗 WebSocket ElevenLabs Conectado")
         
@@ -129,7 +135,11 @@ class AudioBridge(threading.Thread):
                 "agent": {
                     "prompt": {
                         "prompt": f"O nome do lead é {self.lead_name}. Aja naturalmente."
-                    }
+                    },
+                    "first_message": f"Olá {self.lead_name}, tudo bem?",
+                },
+                "tts": {
+                    "output_format": "pcm_16000" # Solicitar PCM 16kHz (vamos converter para 8kHz)
                 }
             }
         }
@@ -142,86 +152,33 @@ class AudioBridge(threading.Thread):
         try:
             data = json.loads(message)
             if data['type'] == 'audio':
-                # Recebeu áudio do ElevenLabs (Base64)
-                # Decodificar e enviar para o SIP (RTP)
-                chunk = base64.b64decode(data['audio_event']['audio_base_64'])
-                # pyVoIP espera PCM linear ou PCMA/PCMU dependendo da negociação.
-                # Assumindo que ElevenLabs manda PCM e pyVoIP converte, ou precisamos converter.
-                # Simplificação: Enviar raw bytes para o call.write_audio
-                self.call.write_audio(chunk)
-                # logger.debug(f"🔊 Áudio enviado para SIP ({len(chunk)} bytes)") # Debug flood
+                # Recebeu áudio do ElevenLabs (Base64) - PCM 16kHz 16-bit
+                chunk_16k = base64.b64decode(data['audio_event']['audio_base_64'])
+                
+                # Converter 16kHz -> 8kHz (pyVoIP usa G.711 8kHz)
+                # width=2 (16-bit), channels=1
+                chunk_8k, _ = audioop.ratecv(chunk_16k, 2, 1, 16000, 8000, None)
+                
+                self.call.write_audio(chunk_8k)
+                
             elif data['type'] == 'agent_response':
                 logger.info(f"🤖 Agente: {data['agent_response'].get('text', '...')}")
             elif data['type'] == 'interruption':
                 logger.info("🛑 Interrupção detectada pelo ElevenLabs")
-                self.call.stop_audio() # Parar áudio atual se houver interrupção
+                self.call.stop_audio() 
         except Exception as e:
             logger.error(f"⚠️ Erro processando mensagem WS: {e}")
 
-    def on_error(self, ws, error):
-        logger.error(f"❌ Erro WS: {error}")
-
-    def on_close(self, ws, close_status_code, close_msg):
-        logger.info("🔌 WebSocket fechado")
-        self.stop()
-
-    def sip_to_elevenlabs_loop(self):
-        logger.info("🎤 Iniciando captura de áudio SIP -> ElevenLabs")
-        while self.running and self.call.state == CallState.ANSWERED:
-            try:
-                # Ler áudio do SIP (bloqueante ou com timeout)
-                # pyVoIP: call.read_audio(length)
-                # Precisamos verificar a API exata do pyVoIP para leitura de stream
-                # Assumindo leitura de 160 bytes (20ms de G.711)
-                audio_frame = self.call.read_audio(160) 
-                
-                if audio_frame:
-                    # Enviar para ElevenLabs
-                    payload = {
-                        "type": "audio",
-                        "audio_event": {
-                            "audio_base_64": base64.b64encode(audio_frame).decode('utf-8'),
-                            "eventId": int(time.time() * 1000)
-                        }
-                    }
-                    self.ws.send(json.dumps(payload))
-            except Exception as e:
-                # logger.error(f"Erro leitura SIP: {e}")
-                time.sleep(0.01)
-
-@app.route('/health', methods=['GET'])
-def health():
-    status_str = "unknown"
-    if sip_client:
-        try:
-            # Acessar _status diretamente pois get_status pode não existir ou falhar
-            status_enum = getattr(sip_client, '_status', 'status_not_found')
-            status_str = str(status_enum)
-        except Exception as e:
-            status_str = f"error: {str(e)}"
-
-    return jsonify({
-        "status": "ok",
-        "version": "2.3-PYTHON-RESTORED",
-        "sip_status": status_str
-    })
-
-@app.route('/make-call', methods=['POST'])
-def make_call():
-    data = request.json
-    phone_number = data.get('phoneNumber')
-    lead_name = data.get('leadName', 'Cliente')
-
-    if not phone_number:
-        return jsonify({"error": "phoneNumber required"}), 400
-
+# ... (make_call function)
     try:
         # 1. Obter URL assinada
+        # Adicionar output_format na URL também por garantia, embora o init_data deva mandar
         url = f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id={ELEVENLABS_AGENT_ID}"
         headers = {"xi-api-key": ELEVENLABS_API_KEY}
         resp = requests.get(url, headers=headers)
         resp.raise_for_status()
         signed_url = resp.json()['signed_url']
+
 
         # 2. Iniciar Chamada SIP
         logger.info(f"📞 Discando para {phone_number}...")
