@@ -5,7 +5,7 @@ import express from 'express';
 import { WebSocket } from 'ws';
 import cors from 'cors';
 import axios from 'axios';
-import { UserAgent } from 'sip.js';
+import { UserAgent, Inviter } from 'sip.js';
 
 // Tentar importar wrtc opcionalmente
 let wrtc;
@@ -92,54 +92,7 @@ app.post('/make-call', async (req, res) => {
               prompt: `O nome do lead é ${leadName || 'o cliente'}. Use este nome de forma natural.`
             }
           }
-        }
-      }));
-
-      // 3. Iniciar chamada SIP
-      try {
-        console.log('✅ Configurando UserAgent SIP (v0.21.x)...');
-
-        const userAgent = new UserAgent({
-          uri: UserAgent.makeURI(`sip:${FACILPABX_USER}@${FACILPABX_HOST}`),
-          transportOptions: {
-            server: `wss://${FACILPABX_HOST}:${SIP_PORT}`
-          },
-          authorizationUsername: FACILPABX_USER,
-          authorizationPassword: FACILPABX_PASSWORD,
-          // Se wrtc não estiver disponível, o SIP.js tentará usar o WebRTC do navegador (que não existe no Node)
-          // A menos que passemos um sessionDescriptionHandlerFactory customizado ou o ambiente tenha polyfills globais.
-        });
-
-        // Em um ambiente Node.js sem 'wrtc', o SIP.js não conseguirá estabelecer mídia (áudio).
-        // Mas ele deve conseguir conectar a sinalização se o transporte for WebSocket.
-
-        // userAgent.start(); // Iniciar conexão
-
-        console.log('✅ UserAgent SIP inicializado (Sinalização apenas se sem wrtc)');
-
-        activeCalls.set(callId, {
-          phoneNumber,
-          leadName,
-          ws,
-          startTime: new Date()
-        });
-
-        res.json({
-          success: true,
-          message: 'Chamada iniciada (Bridge SIP Ativo - v1.3 ESM)',
-          callId: callId
-        });
-
-      } catch (sipError) {
-        console.error('Erro SIP:', sipError);
-        ws.close();
-        throw sipError;
-      }
-    });
-
-    ws.on('message', (data) => {
-      const message = JSON.parse(data.toString());
-      if (message.type === 'agent_response') {
+      if(message.type === 'agent_response') {
         console.log(`🤖 Agente: ${message.agent_response?.text}`);
       }
       if (message.type === 'audio') {
