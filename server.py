@@ -207,36 +207,45 @@ def make_call():
         # 2. Iniciar Chamada SIP
         logger.info(f"📞 Discando para {phone_number}...")
         
-        call = sip_client.call(phone_number)
-        
-        # DEBUG: Ver o que tem dentro do objeto call
         try:
-            logger.info(f"🔍 Atributos do Call: {dir(call)}")
-        except:
-            pass
+            # Tentar forçar codec PCMA (comum no Brasil) se a lib permitir, 
+            # ou apenas confiar que a negociação vai funcionar melhor com try/except.
+            # pyVoIP usa PCMU/PCMA por padrão.
             
-        # Tentar pegar ID de várias formas (o log mostrou que é call_id)
-        call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
-        
-        # Iniciar Bridge em background
-        bridge = AudioBridge(call, signed_url, lead_name, call_id)
-        bridge.start()
+            call = sip_client.call(phone_number)
+            
+            # Tentar pegar ID de várias formas (o log mostrou que é call_id)
+            call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
+            
+            # Iniciar Bridge em background
+            bridge = AudioBridge(call, signed_url, lead_name, call_id)
+            bridge.start()
 
-        # Monitorar estado da chamada por 5 segundos para debug
-        def monitor_call(c, cid):
-            for _ in range(10):
-                time.sleep(0.5)
-                logger.info(f"👀 Estado da chamada {cid}: {c.state}")
-                if c.state == CallState.ANSWERED:
-                    break
-        
-        threading.Thread(target=monitor_call, args=(call, call_id), daemon=True).start()
+            # Monitorar estado da chamada por 5 segundos para debug
+            def monitor_call(c, cid):
+                for _ in range(10):
+                    time.sleep(0.5)
+                    try:
+                        logger.info(f"👀 Estado da chamada {cid}: {c.state}")
+                        if c.state == CallState.ANSWERED:
+                            break
+                        if c.state == CallState.ENDED:
+                            logger.warning(f"⚠️ Chamada {cid} encerrou prematuramente.")
+                            break
+                    except:
+                        pass
+            
+            threading.Thread(target=monitor_call, args=(call, call_id), daemon=True).start()
 
-        return jsonify({
-            "success": True,
-            "message": "Chamada iniciada",
-            "callId": call_id
-        })
+            return jsonify({
+                "success": True,
+                "message": "Chamada iniciada",
+                "callId": call_id
+            })
+            
+        except Exception as dial_error:
+            logger.error(f"❌ Erro crítico ao discar: {dial_error}")
+            return jsonify({"error": f"Falha na discagem: {str(dial_error)}"}), 500
 
     except Exception as e:
         logger.error(f"❌ Erro make-call: {e}")
