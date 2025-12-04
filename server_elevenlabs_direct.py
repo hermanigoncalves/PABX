@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
@@ -76,34 +77,55 @@ def make_call():
         }
 
         logger.info(f"📡 Enviando requisição para ElevenLabs...")
+        logger.info(f"   URL: {url}")
         logger.info(f"   Agent ID: {ELEVENLABS_AGENT_ID}")
-        logger.info(f"   Número: {phone_number}")
+        logger.info(f"   Número destino: {phone_number}")
+        logger.info(f"   Ramal origem: 701")
+        logger.info(f"   Payload completo: {json.dumps(payload, indent=2)}")
         
-        response = requests.post(url, json=payload, headers=headers)
-        
-        logger.info(f"📥 Status Code: {response.status_code}")
-        
-        if response.status_code == 200 or response.status_code == 201:
-            result = response.json()
-            logger.info("✅ Chamada iniciada com sucesso!")
-            logger.info(f"   Conversation ID: {result.get('conversation_id', 'N/A')}")
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
             
-            return jsonify({
-                "success": True,
-                "message": "Chamada iniciada via ElevenLabs",
-                "conversation_id": result.get('conversation_id'),
-                "phoneNumber": phone_number,
-                "leadName": lead_name
-            })
-        else:
-            logger.error(f"❌ Erro na API ElevenLabs: {response.status_code}")
-            logger.error(f"   Response: {response.text}")
+            logger.info(f"📥 Status Code: {response.status_code}")
+            logger.info(f"   Response Headers: {dict(response.headers)}")
             
-            return jsonify({
-                "success": False,
-                "error": f"ElevenLabs API error: {response.status_code}",
-                "details": response.text
-            }), response.status_code
+            if response.status_code == 200 or response.status_code == 201:
+                result = response.json()
+                logger.info("=" * 80)
+                logger.info("✅ Chamada iniciada com sucesso!")
+                logger.info(f"   Conversation ID: {result.get('conversation_id', 'N/A')}")
+                logger.info("=" * 80)
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Chamada iniciada via ElevenLabs",
+                    "conversation_id": result.get('conversation_id'),
+                    "phoneNumber": phone_number,
+                    "leadName": lead_name
+                })
+            else:
+                logger.error("=" * 80)
+                logger.error(f"❌ Erro na API ElevenLabs: {response.status_code}")
+                logger.error(f"   Response Text: {response.text}")
+                logger.error("=" * 80)
+                
+                try:
+                    error_detail = response.json()
+                    logger.error(f"   Error JSON: {json.dumps(error_detail, indent=2)}")
+                except:
+                    pass
+                
+                return jsonify({
+                    "success": False,
+                    "error": f"ElevenLabs API error: {response.status_code}",
+                    "details": response.text
+                }), response.status_code
+        except requests.exceptions.Timeout:
+            logger.error("❌ Timeout ao conectar com ElevenLabs")
+            return jsonify({"success": False, "error": "Timeout connecting to ElevenLabs"}), 504
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Erro de conexão: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
 
     except Exception as e:
         logger.error(f"❌ Erro ao fazer chamada: {e}")
