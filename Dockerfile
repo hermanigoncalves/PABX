@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Usar o server.py original que funciona com WebSocket
 COPY server.py .
 COPY .env* ./
+COPY templates ./templates
+COPY static ./static
 
 # Porta da API HTTP
 EXPOSE 3000
