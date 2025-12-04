@@ -15,7 +15,7 @@ app = Flask(__name__)
 # Configurações
 PORT = int(os.getenv('PORT', 3000))
 ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID')
-ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
+ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', 'sk_41de388a4c719913842e02bac2f914fac3dadba8784fdc50')
 
 # Validar configurações críticas
 if not all([ELEVENLABS_AGENT_ID, ELEVENLABS_API_KEY]):
