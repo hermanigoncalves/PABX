@@ -291,9 +291,14 @@ def health():
 
     return jsonify({
         "status": "ok",
-        "version": "2.4-AUDIO-DEBUG",
+        "version": "2.5-DIAGNOSTICS",
         "sip_status": status_str,
-        "pyvoip_version": getattr(__import__('pyVoIP'), '__version__', 'unknown')
+        "pyvoip_version": getattr(__import__('pyVoIP'), '__version__', 'unknown'),
+        "config": {
+            "agent_id_configured": bool(ELEVENLABS_AGENT_ID),
+            "api_key_configured": bool(ELEVENLABS_API_KEY),
+            "pabx_host_configured": bool(FACILPABX_HOST)
+        }
     })
 
 # Endpoint para testar se write_audio funciona
@@ -397,6 +402,67 @@ def make_call():
     except Exception as e:
         logger.error(f"❌ Erro make-call: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/test-elevenlabs', methods=['GET'])
+def test_elevenlabs():
+    """Testa conexão com ElevenLabs sem SIP"""
+    logs = []
+    def log(msg):
+        logger.info(f"🧪 TEST: {msg}")
+        logs.append(msg)
+
+    try:
+        log("Iniciando teste de conexão ElevenLabs...")
+        
+        if not ELEVENLABS_AGENT_ID or not ELEVENLABS_API_KEY:
+            log("❌ Credenciais ausentes!")
+            return jsonify({"success": False, "logs": logs}), 500
+
+        # 1. Get Signed URL
+        url = f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id={ELEVENLABS_AGENT_ID}"
+        headers = {"xi-api-key": ELEVENLABS_API_KEY}
+        log(f"Requesting signed URL from: {url}")
+        
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            log(f"❌ Erro ao obter URL assinada: {resp.status_code} - {resp.text}")
+            return jsonify({"success": False, "logs": logs}), 500
+            
+        signed_url = resp.json()['signed_url']
+        log("✅ URL assinada obtida com sucesso")
+
+        # 2. Test WebSocket Connection
+        import websocket
+        ws_connected = False
+        ws_error = None
+        
+        def on_open(ws):
+            nonlocal ws_connected
+            ws_connected = True
+            log("✅ WebSocket conectado!")
+            ws.close() # Fechar logo após conectar para o teste
+
+        def on_error(ws, error):
+            nonlocal ws_error
+            ws_error = str(error)
+            log(f"❌ Erro no WebSocket: {error}")
+
+        log(f"Tentando conectar ao WebSocket: {signed_url[:50]}...")
+        ws = websocket.WebSocketApp(signed_url, on_open=on_open, on_error=on_error)
+        ws.run_forever()
+
+        if ws_connected:
+            log("✅ Teste concluído com SUCESSO!")
+            return jsonify({"success": True, "logs": logs})
+        else:
+            log(f"❌ Falha na conexão WebSocket. Erro: {ws_error}")
+            return jsonify({"success": False, "logs": logs}), 500
+
+    except Exception as e:
+        log(f"❌ Exceção não tratada: {str(e)}")
+        import traceback
+        log(traceback.format_exc())
+        return jsonify({"success": False, "logs": logs, "error": str(e)}), 500
 
 # Iniciar SIP ao arrancar (em thread separada para não bloquear o Flask)
 threading.Thread(target=start_sip_client, daemon=True).start()
