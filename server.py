@@ -423,8 +423,42 @@ def make_call():
             # pyVoIP usa PCMU/PCMA por padrão.
             
             logger.info(f"🔍 Chamando método call() com número: {phone_number}")
-            call = sip_client.call(phone_number)
-            logger.info(f"✅ Método call() executado sem erros!")
+            
+            # Verificar estado ANTES de chamar
+            logger.info(f"📊 Estado do cliente SIP antes da chamada: {getattr(sip_client, '_status', 'unknown')}")
+            
+            # Tentar diferentes formatos de número (alguns PABX precisam de prefixo)
+            number_variants = [
+                phone_number,  # Formato original
+                f"0{phone_number}",  # Com prefixo 0 (comum no Brasil)
+                f"9{phone_number}",  # Com prefixo 9 (comum para celulares)
+            ]
+            
+            call = None
+            call_error = None
+            
+            for variant in number_variants:
+                try:
+                    logger.info(f"📞 Tentando discar: {variant}")
+                    call = sip_client.call(variant)
+                    logger.info(f"✅ Chamada criada com número: {variant}")
+                    phone_number = variant  # Usar o número que funcionou
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ Falha com número {variant}: {e}")
+                    call_error = e
+                    continue
+            
+            if not call:
+                logger.error(f"❌ Erro ao chamar sip_client.call() com todos os formatos: {call_error}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return jsonify({"error": f"Erro ao iniciar chamada: {str(call_error)}"}), 500
+            
+            if not call:
+                logger.error("❌ Objeto de chamada é None!")
+                return jsonify({"error": "Call object is None"}), 500
+            
             logger.info(f"✅ Objeto de chamada criado: {type(call)}")
             logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
             
@@ -432,9 +466,29 @@ def make_call():
             call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
             logger.info(f"🆔 Call ID: {call_id}")
             
+            # Verificar estado IMEDIATAMENTE após criar a chamada
+            logger.info(f"📞 Estado IMEDIATO da chamada: {call.state}")
+            
+            # Se já está ENDED, há um problema crítico
+            if call.state == CallState.ENDED:
+                logger.error("=" * 80)
+                logger.error("❌ PROBLEMA CRÍTICO: Chamada já está ENCERRADA imediatamente após criação!")
+                logger.error("   Isso significa que a chamada nunca foi iniciada ou foi rejeitada pelo PABX.")
+                logger.error(f"   Número tentado: {phone_number}")
+                logger.error(f"   Call ID: {call_id}")
+                logger.error(f"   Status SIP: {getattr(sip_client, '_status', 'unknown')}")
+                logger.error("=" * 80)
+                return jsonify({
+                    "error": "Call ended immediately - check SIP configuration and phone number format",
+                    "phone_number": phone_number,
+                    "call_id": call_id,
+                    "sip_status": str(getattr(sip_client, '_status', 'unknown'))
+                }), 500
+            
             # Aguardar um pouco para a chamada ser estabelecida
+            logger.info("⏳ Aguardando 1 segundo para chamada se estabelecer...")
             time.sleep(1)
-            logger.info(f"📞 Estado inicial da chamada: {call.state}")
+            logger.info(f"📞 Estado após 1 segundo: {call.state}")
             
             # Iniciar Bridge em background
             logger.info("🌉 Iniciando bridge de áudio...")
