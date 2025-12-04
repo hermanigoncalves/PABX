@@ -498,15 +498,7 @@ def make_call():
                 logger.error(f"❌ Erro ao chamar sip_client.call(): {e}")
                 return jsonify({"error": f"Erro ao iniciar chamada: {str(e)}"}), 500
             
-            if not call:
-                logger.error(f"❌ Erro ao chamar sip_client.call() com todos os formatos: {call_error}")
-                import traceback
-                logger.error(traceback.format_exc())
-                return jsonify({"error": f"Erro ao iniciar chamada: {str(call_error)}"}), 500
-            
-            if not call:
-                logger.error("❌ Objeto de chamada é None!")
-                return jsonify({"error": "Call object is None"}), 500
+
             
             logger.info(f"✅ Objeto de chamada criado: {type(call)}")
             logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
