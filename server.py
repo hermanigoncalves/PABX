@@ -6,7 +6,7 @@ import logging
 import base64
 import queue
 import struct
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 from pyVoIP.VoIP import VoIPPhone, CallState, InvalidStateError, PhoneStatus
 import websocket
@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 # Handler global de exceções para evitar crashes
 @app.errorhandler(Exception)
@@ -364,6 +368,10 @@ def test_sip_call():
     
     if not sip_client:
         return jsonify({"error": "SIP client not initialized"}), 500
+    
+    # Adicionar prefixo 0 se não tiver (padrão Brasil)
+    if len(test_number) >= 10 and not test_number.startswith('0'):
+        test_number = f"0{test_number}"
     
     try:
         sip_status = getattr(sip_client, '_status', None)

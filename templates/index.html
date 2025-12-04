@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIP ElevenLabs Dialer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 SIP AI Dialer</h1>
+            <div class="status-bar">
+                <div class="status-item" id="sip-status">
+                    <span class="dot"></span> SIP: <span class="val">Verificando...</span>
+                </div>
+                <div class="status-item" id="ai-status">
+                    <span class="dot"></span> AI: <span class="val">Verificando...</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="card dialer-card">
+                <div class="input-group">
+                    <label>Nome do Lead</label>
+                    <input type="text" id="leadName" placeholder="Ex: João Silva" value="Cliente Teste">
+                </div>
+                
+                <div class="input-group">
+                    <label>Telefone</label>
+                    <input type="tel" id="phoneNumber" placeholder="Ex: 32999999999" value="32998489879">
+                </div>
+
+                <div class="actions">
+                    <button id="btnCall" class="btn-primary" onclick="makeCall()">
+                        📞 Ligar Agora
+                    </button>
+                    <button id="btnTest" class="btn-secondary" onclick="runDiagnostics()">
+                        🧪 Diagnóstico
+                    </button>
+                </div>
+            </div>
+
+            <div class="card logs-card">
+                <h3>📜 Logs do Sistema</h3>
+                <div id="logConsole" class="console">
+                    <div class="log-line">Sistema iniciado...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
