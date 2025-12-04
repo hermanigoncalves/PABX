@@ -356,6 +356,46 @@ def test_audio():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/test-sip-call', methods=['POST'])
+def test_sip_call():
+    """Endpoint de teste para diagnosticar problemas de chamada SIP"""
+    data = request.json or {}
+    test_number = data.get('phoneNumber', '32998489879')
+    
+    if not sip_client:
+        return jsonify({"error": "SIP client not initialized"}), 500
+    
+    try:
+        sip_status = getattr(sip_client, '_status', None)
+        
+        # Tentar fazer uma chamada de teste
+        logger.info(f"🧪 TESTE: Tentando chamar {test_number}")
+        call = sip_client.call(test_number)
+        
+        # Verificar estado imediatamente
+        immediate_state = call.state
+        time.sleep(0.5)
+        state_after_500ms = call.state
+        
+        return jsonify({
+            "success": True,
+            "test_number": test_number,
+            "sip_status_before_call": str(sip_status),
+            "call_immediate_state": str(immediate_state),
+            "call_state_after_500ms": str(state_after_500ms),
+            "call_id": getattr(call, 'call_id', 'unknown'),
+            "diagnosis": "Call created successfully" if immediate_state != CallState.ENDED else "Call ended immediately - check PABX configuration"
+        })
+    except Exception as e:
+        import traceback
+        logger.error(f"❌ Erro no teste: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 @app.route('/make-call', methods=['POST'])
 def make_call():
     data = request.json
