@@ -483,40 +483,20 @@ def make_call():
             
             # Tentar diferentes formatos de número (alguns PABX precisam de prefixo)
             # No Brasil, chamadas externas geralmente precisam de prefixo 0
-            number_variants = [
-                f"0{phone_number}",  # Com prefixo 0 (MAIS COMUM no Brasil para chamadas externas)
-                phone_number,  # Formato original (sem prefixo)
-                f"9{phone_number}",  # Com prefixo 9 (alguns PABX)
-                f"00{phone_number}",  # Com prefixo 00 (chamadas internacionais)
-            ]
-            
             call = None
-            call_error = None
-            
-            for variant in number_variants:
-                try:
-                    logger.info(f"📞 Tentando discar: {variant}")
-                    call = sip_client.call(variant)
-                    
-                    # Verificar estado IMEDIATAMENTE após criar a chamada
-                    immediate_state = call.state
-                    logger.info(f"   Estado imediato: {immediate_state}")
-                    
-                    # Se não está ENDED imediatamente, consideramos sucesso
-                    if immediate_state != CallState.ENDED:
-                        logger.info(f"✅ Chamada criada com sucesso usando número: {variant}")
-                        phone_number = variant  # Usar o número que funcionou
-                        break
-                    else:
-                        logger.warning(f"⚠️ Chamada criada mas já está ENDED com número: {variant}")
-                        # Continuar tentando outros formatos
-                        call = None
-                        
-                except Exception as e:
-                    logger.warning(f"⚠️ Falha com número {variant}: {e}")
-                    call_error = e
-                    call = None
-                    continue
+            try:
+                logger.info(f"📞 Tentando discar: {phone_number}")
+                call = sip_client.call(phone_number)
+                
+                # Verificar estado IMEDIATAMENTE após criar a chamada
+                immediate_state = call.state
+                logger.info(f"   Estado imediato: {immediate_state}")
+                
+                if immediate_state == CallState.ENDED:
+                    logger.warning(f"⚠️ Chamada criada mas já está ENDED. O PABX pode ter rejeitado o número.")
+            except Exception as e:
+                logger.error(f"❌ Erro ao chamar sip_client.call(): {e}")
+                return jsonify({"error": f"Erro ao iniciar chamada: {str(e)}"}), 500
             
             if not call:
                 logger.error(f"❌ Erro ao chamar sip_client.call() com todos os formatos: {call_error}")
