@@ -1,23 +1,18 @@
-FROM python:3.9-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Instalar dependências do sistema (necessário para algumas libs de áudio se precisarmos)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+COPY package*.json ./
 
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
+RUN npm install
 
 COPY . .
 
-# Porta da API HTTP
+# API Port
 EXPOSE 3000
-# Porta SIP (UDP)
-EXPOSE 5060/udp
-# Porta RTP (UDP) - Intervalo comum, ajustável no código
+# SIP Port (TCP/UDP)
+EXPOSE 5060
+# RTP Ports (UDP)
 EXPOSE 10000-20000/udp
 
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:3000", "server:app"]
+CMD ["npm", "start"]
