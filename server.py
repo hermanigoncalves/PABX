@@ -336,13 +336,23 @@ def make_call():
     if not phone_number:
         return jsonify({"error": "phoneNumber required"}), 400
     
-    # Garantir que o número tenha código do país (Brasil = 55)
-    # Se começar com 55, já está correto. Se não, adicionar 55
+    # Formatar número: remover espaços, traços, parênteses
     phone_number = phone_number.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
-    if not phone_number.startswith('55'):
-        # Assumir que é número brasileiro sem código do país
-        phone_number = '55' + phone_number
-    logger.info(f"📱 Número formatado: {phone_number}")
+    
+    # Para o PABX brasileiro, geralmente precisa do formato: DDD + número (sem código do país)
+    # Se o número começar com 55, remover (código do país)
+    if phone_number.startswith('55') and len(phone_number) > 11:
+        # Remover código do país 55
+        phone_number = phone_number[2:]
+        logger.info(f"📱 Removido código do país 55. Número: {phone_number}")
+    elif not phone_number.startswith('55'):
+        # Se não tem código do país, assumir que já está no formato correto (DDD + número)
+        logger.info(f"📱 Número já está no formato DDD+número: {phone_number}")
+    else:
+        # Tem código do país mas é número curto (improvável, mas vamos manter)
+        logger.info(f"📱 Número mantido como está: {phone_number}")
+    
+    logger.info(f"📱 Número final para discagem: {phone_number}")
 
     try:
         # 1. Obter URL assinada
@@ -360,15 +370,32 @@ def make_call():
         logger.info(f"   URL: {signed_url[:80]}...")
 
 
+        # 2. Verificar se cliente SIP está pronto
+        if not sip_client:
+            logger.error("❌ Cliente SIP não está inicializado!")
+            return jsonify({"error": "SIP client not initialized"}), 500
+        
+        # Verificar status do cliente SIP
+        try:
+            sip_status = getattr(sip_client, '_status', None)
+            logger.info(f"📊 Status do cliente SIP: {sip_status}")
+            if sip_status != PhoneStatus.REGISTERED:
+                logger.warning(f"⚠️ Cliente SIP não está registrado! Status: {sip_status}")
+        except Exception as e:
+            logger.warning(f"⚠️ Não foi possível verificar status SIP: {e}")
+        
         # 2. Iniciar Chamada SIP
         logger.info(f"📞 Discando para {phone_number}...")
+        logger.info(f"   Cliente SIP: {type(sip_client)}")
         
         try:
             # Tentar forçar codec PCMA (comum no Brasil) se a lib permitir, 
             # ou apenas confiar que a negociação vai funcionar melhor com try/except.
             # pyVoIP usa PCMU/PCMA por padrão.
             
+            logger.info(f"🔍 Chamando método call() com número: {phone_number}")
             call = sip_client.call(phone_number)
+            logger.info(f"✅ Método call() executado sem erros!")
             logger.info(f"✅ Objeto de chamada criado: {type(call)}")
             logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
             
@@ -409,8 +436,17 @@ def make_call():
             })
             
         except Exception as dial_error:
+            logger.error("=" * 80)
             logger.error(f"❌ Erro crítico ao discar: {dial_error}")
-            return jsonify({"error": f"Falha na discagem: {str(dial_error)}"}), 500
+            import traceback
+            logger.error(f"Traceback completo:")
+            logger.error(traceback.format_exc())
+            logger.error("=" * 80)
+            return jsonify({
+                "error": f"Falha na discagem: {str(dial_error)}",
+                "phone_number": phone_number,
+                "sip_client_status": str(getattr(sip_client, '_status', 'unknown')) if sip_client else 'not_initialized'
+            }), 500
 
     except Exception as e:
         logger.error(f"❌ Erro make-call: {e}")
