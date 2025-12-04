@@ -7,7 +7,7 @@ COPY requirements_simple.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server_elevenlabs_direct.py server.py
+COPY server.py .
 COPY .env* ./
 
 # Porta da API HTTP (ElevenLabs faz a conexão SIP diretamente)
