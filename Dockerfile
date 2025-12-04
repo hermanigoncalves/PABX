@@ -1,18 +1,16 @@
-FROM node:18-alpine
+FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+# Copiar apenas as dependências essenciais
+COPY requirements_simple.txt requirements.txt
 
-RUN npm install
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY server_elevenlabs_direct.py server.py
+COPY .env* ./
 
-# API Port
+# Porta da API HTTP (ElevenLabs faz a conexão SIP diretamente)
 EXPOSE 3000
-# SIP Port (TCP/UDP)
-EXPOSE 5060
-# RTP Ports (UDP)
-EXPOSE 10000-20000/udp
 
-CMD ["npm", "start"]
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:3000", "server:app"]

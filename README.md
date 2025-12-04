@@ -1,6 +1,7 @@
-# ElevenLabs SIP Bridge
+# ElevenLabs SIP Bridge - Versão 3.0 (Direto)
 
-Servidor ponte entre Fácil PABX e ElevenLabs Conversational AI.
+Servidor que usa a API do ElevenLabs para fazer chamadas diretas via SIP Trunk.
+O ElevenLabs gerencia todo o áudio automaticamente.
 
 ## 🚀 Instalação Local
 
