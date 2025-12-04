@@ -20,6 +20,14 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Handler global de exceções para evitar crashes
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logger.error(f"❌ Exceção não tratada: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+    return jsonify({"error": "Internal server error", "message": str(e)}), 500
+
 # Configurações
 PORT = int(os.getenv('PORT', 3000))
 SIP_PORT = int(os.getenv('SIP_PORT', 5060))
@@ -52,10 +60,18 @@ def incoming_call_handler(call):
 def start_sip_client():
     global sip_client
     try:
+        logger.info("=" * 80)
+        logger.info("🚀 Iniciando cliente SIP...")
+        logger.info("=" * 80)
+        
         public_ip = get_public_ip()
         logger.info(f"🌍 IP Público detectado: {public_ip}")
         
-        logger.info(f"🔄 Iniciando cliente SIP ({FACILPABX_USER}@{FACILPABX_HOST})...")
+        logger.info(f"🔄 Configurando cliente SIP ({FACILPABX_USER}@{FACILPABX_HOST})...")
+        logger.info(f"   Host: {FACILPABX_HOST}")
+        logger.info(f"   Port: {SIP_PORT}")
+        logger.info(f"   User: {FACILPABX_USER}")
+        logger.info(f"   Password: {'*' * len(FACILPABX_PASSWORD) if FACILPABX_PASSWORD else 'NÃO CONFIGURADO'}")
         
         # TRUQUE NAT: Bind no 0.0.0.0 (interno) mas anunciar IP Público nos headers
         sip_client = VoIPPhone(
@@ -73,10 +89,23 @@ def start_sip_client():
         # Substituir IP para os headers SIP (Contact/Via)
         sip_client.myIP = public_ip 
         
+        logger.info("🔄 Iniciando cliente SIP...")
         sip_client.start()
-        logger.info(f"✅ Cliente SIP iniciado. IP Local: 0.0.0.0, IP Anunciado: {public_ip}, RTP: 10000-20000")
+        logger.info("=" * 80)
+        logger.info(f"✅ Cliente SIP iniciado com SUCESSO!")
+        logger.info(f"   IP Local: 0.0.0.0")
+        logger.info(f"   IP Anunciado: {public_ip}")
+        logger.info(f"   RTP: 10000-20000")
+        logger.info("=" * 80)
     except Exception as e:
+        logger.error("=" * 80)
         logger.error(f"❌ Erro ao iniciar cliente SIP: {e}")
+        import traceback
+        logger.error("Traceback completo:")
+        logger.error(traceback.format_exc())
+        logger.error("=" * 80)
+        # Não crashar o servidor se o SIP falhar - apenas logar o erro
+        sip_client = None
 
 # Thread de Bridge de Áudio (Um por chamada)
 class AudioBridge(threading.Thread):
@@ -514,7 +543,19 @@ def test_elevenlabs():
         return jsonify({"success": False, "logs": logs, "error": str(e)}), 500
 
 # Iniciar SIP ao arrancar (em thread separada para não bloquear o Flask)
-threading.Thread(target=start_sip_client, daemon=True).start()
+# Aguardar um pouco antes de iniciar o SIP para garantir que o Flask está pronto
+def delayed_sip_start():
+    time.sleep(2)  # Aguardar 2 segundos para o Flask iniciar
+    try:
+        logger.info("🚀 Iniciando cliente SIP em background...")
+        start_sip_client()
+    except Exception as e:
+        logger.error(f"❌ Erro ao iniciar SIP client em background: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+threading.Thread(target=delayed_sip_start, daemon=True).start()
 
 if __name__ == '__main__':
+    logger.info(f"🚀 Iniciando servidor Flask na porta {PORT}...")
     app.run(host='0.0.0.0', port=PORT)
