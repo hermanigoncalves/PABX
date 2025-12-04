@@ -213,10 +213,10 @@ class AudioBridge(threading.Thread):
                 # Empacotar de volta para bytes
                 chunk_8k = struct.pack(f"<{len(samples_8k)}h", *samples_8k)
                 
-                logger.info(f"✅ Áudio convertido: {len(chunk_8k)} bytes, enviando para chamada SIP...")
+                # logger.info(f"✅ Áudio convertido: {len(chunk_8k)} bytes, enviando para chamada SIP...")
                 try:
                     self.call.write_audio(chunk_8k)
-                    logger.info("✅ Áudio enviado para SIP!")
+                    # logger.info("✅ Áudio enviado para SIP!")
                 except Exception as audio_err:
                     logger.error(f"❌ Erro ao enviar áudio para SIP: {audio_err}")
                     logger.error(f"Tipo do objeto call: {type(self.call)}")
@@ -256,6 +256,7 @@ class AudioBridge(threading.Thread):
 
     def sip_to_elevenlabs_loop(self):
         logger.info("🎤 Iniciando captura de áudio SIP -> ElevenLabs")
+        frames_read = 0
         while self.running and self.call.state == CallState.ANSWERED:
             try:
                 # Ler áudio do SIP (bloqueante ou com timeout)
@@ -265,6 +266,10 @@ class AudioBridge(threading.Thread):
                 audio_frame = self.call.read_audio(160) 
                 
                 if audio_frame:
+                    frames_read += 1
+                    if frames_read % 100 == 0:
+                        logger.info(f"🎤 Lendo áudio SIP... (Frames: {frames_read})")
+
                     # Enviar para ElevenLabs
                     payload = {
                         "type": "audio",
