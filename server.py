@@ -500,6 +500,10 @@ def make_call():
             
 
             
+            if not call:
+                logger.error("❌ Objeto de chamada é None (falha silenciosa no pyVoIP)")
+                return jsonify({"error": "Falha ao criar chamada SIP (objeto nulo)"}), 500
+
             logger.info(f"✅ Objeto de chamada criado: {type(call)}")
             logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
             
