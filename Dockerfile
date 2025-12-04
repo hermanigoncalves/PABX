@@ -2,13 +2,13 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Copiar apenas as dependências essenciais
-COPY requirements_simple.txt requirements.txt
+# Copiar dependências
+COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Usar a versão NOVA que faz chamadas diretas via ElevenLabs API
-COPY server_elevenlabs_direct.py server.py
+# Usar o server.py original que funciona com WebSocket
+COPY server.py .
 COPY .env* ./
 
 # Porta da API HTTP (ElevenLabs faz a conexão SIP diretamente)

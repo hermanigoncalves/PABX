@@ -335,6 +335,14 @@ def make_call():
 
     if not phone_number:
         return jsonify({"error": "phoneNumber required"}), 400
+    
+    # Garantir que o número tenha código do país (Brasil = 55)
+    # Se começar com 55, já está correto. Se não, adicionar 55
+    phone_number = phone_number.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+    if not phone_number.startswith('55'):
+        # Assumir que é número brasileiro sem código do país
+        phone_number = '55' + phone_number
+    logger.info(f"📱 Número formatado: {phone_number}")
 
     try:
         # 1. Obter URL assinada
