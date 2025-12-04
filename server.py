@@ -429,6 +429,12 @@ def make_call():
         # Tem código do país mas é número curto (improvável, mas vamos manter)
         logger.info(f"📱 Número mantido como está: {phone_number}")
     
+    # Adicionar prefixo 0 se não tiver (padrão Brasil)
+    # Ex: 32998489879 -> 032998489879
+    if len(phone_number) >= 10 and not phone_number.startswith('0'):
+        phone_number = f"0{phone_number}"
+        logger.info(f"📱 Adicionado prefixo 0. Número final: {phone_number}")
+    
     logger.info(f"📱 Número final para discagem: {phone_number}")
 
     try:

@@ -52,7 +52,19 @@ async function makeCall() {
             body: JSON.stringify({ phoneNumber: phone, leadName: name })
         });
 
-        const data = await res.json();
+        let data;
+        const text = await res.text();
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            // Se não for JSON, provavelmente é erro HTML (500/504)
+            log(`❌ Erro Crítico do Servidor: ${res.status} ${res.statusText}`, 'error');
+            console.error('Resposta não-JSON:', text);
+            if (text.includes('Gateway Time-out')) {
+                log('⚠️ O servidor demorou muito para responder (Timeout). O PABX pode estar inacessível.', 'warning');
+            }
+            return;
+        }
 
         if (res.ok) {
             log(`✅ Chamada Iniciada! ID: ${data.callId}`, 'success');
