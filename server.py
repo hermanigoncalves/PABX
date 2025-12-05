@@ -471,7 +471,9 @@ def make_call():
             call = sip_client.call(p_number)
             
             # ID da chamada
-            call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
+            # ID da chamada - Garantir que seja string
+            raw_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or int(time.time())
+            call_id = str(raw_id)
             call_statuses[req_id]["call_id"] = call_id
             
             # Verificar estado imediato
