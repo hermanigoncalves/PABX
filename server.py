@@ -453,105 +453,52 @@ def make_call():
         logger.info(f"   URL: {signed_url[:80]}...")
 
 
-        # 2. Verificar se cliente SIP está pronto
-        if not sip_client:
-            logger.error("❌ Cliente SIP não está inicializado!")
-            return jsonify({"error": "SIP client not initialized"}), 500
-        
-        # Verificar status do cliente SIP
+    # 2. Iniciar Chamada SIP em Background
+    # Usamos uma thread para não bloquear a resposta HTTP e evitar timeout (Gateway Timeout)
+    def call_worker(p_number, l_name, s_url):
         try:
-            sip_status = getattr(sip_client, '_status', None)
-            logger.info(f"📊 Status do cliente SIP: {sip_status}")
-            if sip_status != PhoneStatus.REGISTERED:
-                logger.warning(f"⚠️ Cliente SIP não está registrado! Status: {sip_status}")
-        except Exception as e:
-            logger.warning(f"⚠️ Não foi possível verificar status SIP: {e}")
-        
-        # 2. Iniciar Chamada SIP
-        logger.info(f"📞 Discando para {phone_number}...")
-        logger.info(f"   Cliente SIP: {type(sip_client)}")
-        
-        try:
-            # Tentar forçar codec PCMA (comum no Brasil) se a lib permitir, 
-            # ou apenas confiar que a negociação vai funcionar melhor com try/except.
-            # pyVoIP usa PCMU/PCMA por padrão.
+            logger.info(f"🧵 [Thread] Iniciando chamada para {p_number}...")
             
-            logger.info(f"🔍 Chamando método call() com número: {phone_number}")
-            
-            # Verificar estado ANTES de chamar
-            logger.info(f"📊 Estado do cliente SIP antes da chamada: {getattr(sip_client, '_status', 'unknown')}")
-            
-            # Tentar diferentes formatos de número (alguns PABX precisam de prefixo)
-            # No Brasil, chamadas externas geralmente precisam de prefixo 0
-            call = None
-            try:
-                logger.info(f"📞 Tentando discar: {phone_number}")
-                call = sip_client.call(phone_number)
-                
-                # Verificar estado IMEDIATAMENTE após criar a chamada
-                immediate_state = call.state
-                logger.info(f"   Estado imediato: {immediate_state}")
-                
-                if immediate_state == CallState.ENDED:
-                    logger.warning(f"⚠️ Chamada criada mas já está ENDED. O PABX pode ter rejeitado o número.")
-            except Exception as e:
-                logger.error(f"❌ Erro ao chamar sip_client.call(): {e}")
-                return jsonify({"error": f"Erro ao iniciar chamada: {str(e)}"}), 500
-            
+            # Verificar se cliente SIP está pronto (dentro da thread)
+            if not sip_client:
+                logger.error("❌ [Thread] Cliente SIP não inicializado")
+                return
 
+            call = sip_client.call(p_number)
             
-            if not call:
-                logger.error("❌ Objeto de chamada é None (falha silenciosa no pyVoIP)")
-                return jsonify({"error": "Falha ao criar chamada SIP (objeto nulo)"}), 500
-
-            logger.info(f"✅ Objeto de chamada criado: {type(call)}")
-            logger.info(f"📋 Métodos disponíveis: {[m for m in dir(call) if not m.startswith('_') and 'audio' in m.lower()]}")
-            
-            # Tentar pegar ID de várias formas (o log mostrou que é call_id)
+            # ID da chamada
             call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
-            logger.info(f"🆔 Call ID: {call_id}")
+            logger.info(f"🆔 [Thread] Call ID: {call_id}")
             
-            # Verificar estado IMEDIATAMENTE após criar a chamada
-            logger.info(f"📞 Estado IMEDIATO da chamada: {call.state}")
-            
-            # Se já está ENDED, há um problema crítico
+            # Verificar estado imediato
+            time.sleep(0.5)
             if call.state == CallState.ENDED:
-                logger.error("=" * 80)
-                logger.error("❌ PROBLEMA CRÍTICO: Chamada já está ENCERRADA imediatamente após criação!")
-                logger.error("   Isso significa que a chamada nunca foi iniciada ou foi rejeitada pelo PABX.")
-                logger.error(f"   Número tentado: {phone_number}")
-                logger.error(f"   Call ID: {call_id}")
-                logger.error(f"   Status SIP: {getattr(sip_client, '_status', 'unknown')}")
-                logger.error("=" * 80)
-                return jsonify({
-                    "error": "Call ended immediately - check SIP configuration and phone number format",
-                    "phone_number": phone_number,
-                    "call_id": call_id,
-                    "sip_status": str(getattr(sip_client, '_status', 'unknown'))
-                }), 500
-            
-            # Aguardar um pouco para a chamada ser estabelecida
-            logger.info("⏳ Aguardando 1 segundo para chamada se estabelecer...")
-            time.sleep(1)
-            logger.info(f"📞 Estado após 1 segundo: {call.state}")
-            
-            # Iniciar Bridge em background
-            logger.info("🌉 Iniciando bridge de áudio...")
-            bridge = AudioBridge(call, signed_url, lead_name, call_id)
-            bridge.start()
-            logger.info("✅ Bridge iniciado!")
+                logger.warning(f"⚠️ [Thread] Chamada {call_id} encerrou imediatamente. PABX pode ter rejeitado.")
+                return
 
-            # Monitorar estado da chamada por 5 segundos para debug
-            def monitor_call(c, cid):
-                for _ in range(10):
-                    time.sleep(0.5)
-                    try:
-                        logger.info(f"👀 Estado da chamada {cid}: {c.state}")
-                        if c.state == CallState.ANSWERED:
-                            break
-                        if c.state == CallState.ENDED:
-                            logger.warning(f"⚠️ Chamada {cid} encerrou prematuramente.")
-                            break
+            logger.info(f"✅ [Thread] Chamada iniciada. Estado: {call.state}")
+            
+            # Iniciar Bridge
+            logger.info("🌉 [Thread] Iniciando bridge de áudio...")
+            bridge = AudioBridge(call, s_url, l_name, call_id)
+            bridge.start()
+            logger.info("✅ [Thread] Bridge iniciado!")
+
+        except Exception as e:
+            logger.error(f"❌ [Thread] Erro fatal na chamada: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # Iniciar a thread
+    threading.Thread(target=call_worker, args=(phone_number, lead_name, signed_url), daemon=True).start()
+
+    # Retornar sucesso imediatamente (202 Accepted)
+    return jsonify({
+        "success": True,
+        "message": "Call initiated in background",
+        "phone_number": phone_number,
+        "status": "processing"
+    }), 202
                     except:
                         pass
             
