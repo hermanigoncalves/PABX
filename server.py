@@ -415,7 +415,7 @@ def test_sip_call():
         }), 500
 
 @app.route('/make-call', methods=['POST'])
-@app.route('/make-call', methods=['POST'])
+
 def make_call():
     data = request.json
     phone_number = data.get('phoneNumber')
