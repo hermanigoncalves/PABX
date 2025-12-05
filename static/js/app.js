@@ -67,7 +67,7 @@ async function makeCall() {
         }
 
         if (res.ok) {
-            const data = await res.json();
+            // data já foi parseado acima
             log(`✅ Processo iniciado! ID: ${data.request_id}`, 'info');
 
             // Polling de status
