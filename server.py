@@ -500,33 +500,7 @@ def make_call():
         "request_id": request_id,
         "message": "Processo iniciado em background"
     }), 202
-                    except:
-                        pass
-            
-            threading.Thread(target=monitor_call, args=(call, call_id), daemon=True).start()
 
-            return jsonify({
-                "success": True,
-                "message": "Chamada iniciada",
-                "callId": call_id
-            })
-            
-        except Exception as dial_error:
-            logger.error("=" * 80)
-            logger.error(f"❌ Erro crítico ao discar: {dial_error}")
-            import traceback
-            logger.error(f"Traceback completo:")
-            logger.error(traceback.format_exc())
-            logger.error("=" * 80)
-            return jsonify({
-                "error": f"Falha na discagem: {str(dial_error)}",
-                "phone_number": phone_number,
-                "sip_client_status": str(getattr(sip_client, '_status', 'unknown')) if sip_client else 'not_initialized'
-            }), 500
-
-    except Exception as e:
-        logger.error(f"❌ Erro make-call: {e}")
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/test-elevenlabs', methods=['GET'])
 def test_elevenlabs():
