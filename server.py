@@ -575,7 +575,12 @@ def delayed_sip_start():
         import traceback
         logger.error(traceback.format_exc())
 
-threading.Thread(target=delayed_sip_start, daemon=True).start()
+@app.route('/start-sip', methods=['POST'])
+def manual_start_sip():
+    threading.Thread(target=start_sip_client, daemon=True).start()
+    return jsonify({"message": "SIP Client startup triggered in background"})
+
+# threading.Thread(target=delayed_sip_start, daemon=True).start()
 
 if __name__ == '__main__':
     logger.info(f"🚀 Iniciando servidor Flask na porta {PORT}...")
