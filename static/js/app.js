@@ -67,13 +67,43 @@ async function makeCall() {
         }
 
         if (res.ok) {
-            log(`✅ Chamada Iniciada! ID: ${data.callId}`, 'success');
+            const data = await res.json();
+            log(`✅ Processo iniciado! ID: ${data.request_id}`, 'info');
+
+            // Polling de status
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await fetch(`/call-status/${data.request_id}`);
+                    const statusData = await statusRes.json();
+
+                    if (statusData.logs && statusData.logs.length > 0) {
+                        const lastLog = statusData.logs[statusData.logs.length - 1];
+                        log(`🔄 ${lastLog}`, 'info');
+                    }
+
+                    if (statusData.status === 'success') {
+                        clearInterval(pollInterval);
+                        log('✅ Chamada estabelecida com sucesso!', 'success');
+                        btn.disabled = false;
+                        btn.innerHTML = '📞 Ligar Agora';
+                    } else if (statusData.status === 'failed' || statusData.status === 'error') {
+                        clearInterval(pollInterval);
+                        log(`❌ Falha: ${statusData.message}`, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '📞 Ligar Agora';
+                    }
+                } catch (e) {
+                    console.error("Erro no polling", e);
+                }
+            }, 1000);
+
         } else {
-            log(`❌ Erro na chamada: ${data.error}`, 'error');
+            log(`❌ Erro na requisição: ${res.statusText}`, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '📞 Ligar Agora';
         }
     } catch (e) {
         log(`❌ Erro de rede: ${e.message}`, 'error');
-    } finally {
         btn.disabled = false;
         btn.innerHTML = '📞 Ligar Agora';
     }

@@ -48,6 +48,9 @@ if not all([ELEVENLABS_AGENT_ID, ELEVENLABS_API_KEY, FACILPABX_HOST, FACILPABX_U
 # Cliente SIP Global
 sip_client = None
 
+# Dicionário para rastrear status das chamadas (request_id -> status dict)
+call_statuses = {}
+
 def get_public_ip():
     try:
         return requests.get('https://api.ipify.org', timeout=5).text
@@ -360,6 +363,13 @@ def test_audio():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/call-status/<request_id>', methods=['GET'])
+def get_call_status(request_id):
+    status = call_statuses.get(request_id)
+    if not status:
+        return jsonify({"error": "Request ID not found"}), 404
+    return jsonify(status)
+
 @app.route('/test-sip-call', methods=['POST'])
 def test_sip_call():
     """Endpoint de teste para diagnosticar problemas de chamada SIP"""
@@ -405,6 +415,7 @@ def test_sip_call():
         }), 500
 
 @app.route('/make-call', methods=['POST'])
+@app.route('/make-call', methods=['POST'])
 def make_call():
     data = request.json
     phone_number = data.get('phoneNumber')
@@ -413,91 +424,81 @@ def make_call():
     if not phone_number:
         return jsonify({"error": "phoneNumber required"}), 400
     
-    # Formatar número: remover espaços, traços, parênteses
+    # Gerar ID da requisição
+    import uuid
+    request_id = str(uuid.uuid4())
+    
+    # Inicializar status
+    call_statuses[request_id] = {
+        "status": "queued",
+        "message": "Iniciando processo...",
+        "logs": []
+    }
+
+    # Formatar número
     phone_number = phone_number.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
-    
-    # Para o PABX brasileiro, geralmente precisa do formato: DDD + número (sem código do país)
-    # Se o número começar com 55, remover (código do país)
     if phone_number.startswith('55') and len(phone_number) > 11:
-        # Remover código do país 55
         phone_number = phone_number[2:]
-        logger.info(f"📱 Removido código do país 55. Número: {phone_number}")
-    elif not phone_number.startswith('55'):
-        # Se não tem código do país, assumir que já está no formato correto (DDD + número)
-        logger.info(f"📱 Número já está no formato DDD+número: {phone_number}")
-    else:
-        # Tem código do país mas é número curto (improvável, mas vamos manter)
-        logger.info(f"📱 Número mantido como está: {phone_number}")
     
-    # Adicionar prefixo 0 se não tiver (padrão Brasil)
-    # Ex: 32998489879 -> 032998489879
     if len(phone_number) >= 10 and not phone_number.startswith('0'):
         phone_number = f"0{phone_number}"
-        logger.info(f"📱 Adicionado prefixo 0. Número final: {phone_number}")
-    
-    logger.info(f"📱 Número final para discagem: {phone_number}")
 
-    try:
-        # 1. Obter URL assinada
-        logger.info("=" * 80)
-        logger.info("🔑 Obtendo URL assinada do ElevenLabs...")
-        logger.info("=" * 80)
-        url = f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id={ELEVENLABS_AGENT_ID}"
-        headers = {"xi-api-key": ELEVENLABS_API_KEY}
+    def call_worker(req_id, p_number, l_name):
+        def update_status(status, msg, error=None):
+            call_statuses[req_id]["status"] = status
+            call_statuses[req_id]["message"] = msg
+            call_statuses[req_id]["logs"].append(f"[{status}] {msg}")
+            if error:
+                call_statuses[req_id]["error"] = str(error)
         
-        logger.info(f"📡 Fazendo requisição para: {url}")
-        resp = requests.get(url, headers=headers)
-        resp.raise_for_status()
-        signed_url = resp.json()['signed_url']
-        logger.info(f"✅ URL assinada obtida com sucesso!")
-        logger.info(f"   URL: {signed_url[:80]}...")
-
-
-    # 2. Iniciar Chamada SIP em Background
-    # Usamos uma thread para não bloquear a resposta HTTP e evitar timeout (Gateway Timeout)
-    def call_worker(p_number, l_name, s_url):
         try:
-            logger.info(f"🧵 [Thread] Iniciando chamada para {p_number}...")
+            update_status("processing", "Obtendo URL assinada do ElevenLabs...")
             
-            # Verificar se cliente SIP está pronto (dentro da thread)
+            # 1. Obter URL assinada (Agora dentro da thread)
+            url = f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id={ELEVENLABS_AGENT_ID}"
+            headers = {"xi-api-key": ELEVENLABS_API_KEY}
+            
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            signed_url = resp.json()['signed_url']
+            
+            update_status("dialing", f"Discando para {p_number}...")
+            
+            # 2. Iniciar Chamada SIP
             if not sip_client:
-                logger.error("❌ [Thread] Cliente SIP não inicializado")
-                return
+                raise Exception("Cliente SIP não inicializado")
 
             call = sip_client.call(p_number)
             
             # ID da chamada
             call_id = getattr(call, 'call_id', None) or getattr(call, 'callID', None) or getattr(call, 'id', None) or str(int(time.time()))
-            logger.info(f"🆔 [Thread] Call ID: {call_id}")
+            call_statuses[req_id]["call_id"] = call_id
             
             # Verificar estado imediato
             time.sleep(0.5)
             if call.state == CallState.ENDED:
-                logger.warning(f"⚠️ [Thread] Chamada {call_id} encerrou imediatamente. PABX pode ter rejeitado.")
+                update_status("failed", "Chamada rejeitada pelo PABX (Ocupado ou Inválido)")
                 return
 
-            logger.info(f"✅ [Thread] Chamada iniciada. Estado: {call.state}")
+            update_status("ringing", "Chamada iniciada, aguardando atendimento...")
             
             # Iniciar Bridge
-            logger.info("🌉 [Thread] Iniciando bridge de áudio...")
-            bridge = AudioBridge(call, s_url, l_name, call_id)
+            bridge = AudioBridge(call, signed_url, l_name, call_id)
             bridge.start()
-            logger.info("✅ [Thread] Bridge iniciado!")
+            
+            update_status("success", "Bridge de áudio iniciado!")
 
         except Exception as e:
-            logger.error(f"❌ [Thread] Erro fatal na chamada: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            logger.error(f"❌ Erro na thread de chamada: {e}")
+            update_status("error", f"Erro fatal: {str(e)}", e)
 
     # Iniciar a thread
-    threading.Thread(target=call_worker, args=(phone_number, lead_name, signed_url), daemon=True).start()
+    threading.Thread(target=call_worker, args=(request_id, phone_number, lead_name), daemon=True).start()
 
-    # Retornar sucesso imediatamente (202 Accepted)
     return jsonify({
         "success": True,
-        "message": "Call initiated in background",
-        "phone_number": phone_number,
-        "status": "processing"
+        "request_id": request_id,
+        "message": "Processo iniciado em background"
     }), 202
                     except:
                         pass
