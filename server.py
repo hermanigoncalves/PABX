@@ -575,7 +575,7 @@ def delayed_sip_start():
         import traceback
         logger.error(traceback.format_exc())
 
-# threading.Thread(target=delayed_sip_start, daemon=True).start()
+threading.Thread(target=delayed_sip_start, daemon=True).start()
 
 if __name__ == '__main__':
     logger.info(f"🚀 Iniciando servidor Flask na porta {PORT}...")
