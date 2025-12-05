@@ -1,6 +1,10 @@
-import os
-import json
-import threading
+import uuid
+
+# ... imports ...
+
+# ...
+
+# threading.Thread(target=delayed_sip_start, daemon=True).start()
 import time
 import logging
 import base64
@@ -425,7 +429,6 @@ def make_call():
         return jsonify({"error": "phoneNumber required"}), 400
     
     # Gerar ID da requisição
-    import uuid
     request_id = str(uuid.uuid4())
     
     # Inicializar status
